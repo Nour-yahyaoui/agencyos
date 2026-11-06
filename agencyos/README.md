@@ -107,6 +107,22 @@ The browser only ever calls the same-origin path `/api/v1`; Next.js rewrites pro
 
 The seed is deterministic (`seed-*` ids) and refuses to run when `NODE_ENV=production`.
 
+### Demo activity data (optional)
+
+For a fuller demo workspace (~4 months of clients, tasks, invoices, notifications and audit
+events), run the additive activity seed after the base seed:
+
+```bash
+npm run db:seed:activity
+```
+
+This inserts ~1,400 clearly-labelled synthetic rows (`demo-activity-*` ids, example.com
+domains, fictional companies) into the same organization. It is deterministic, idempotent
+(re-running replaces exactly those rows) and refuses to run when `NODE_ENV=production`.
+Remove them any time by deleting rows whose ids start with `demo-activity-` (and webhook
+events whose `eventId` starts with `demo-activity-wh-`). All payment/webhook records carry
+`demo_*` provider ids and are not live Stripe transactions.
+
 ## 5. Scripts
 
 | Command | Purpose |

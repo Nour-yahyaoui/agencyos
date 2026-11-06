@@ -13,6 +13,7 @@
     "db:migrate": "dotenv-cli -e ../../.env -- prisma migrate dev",
     "db:deploy": "dotenv-cli -e ../../.env -- prisma migrate deploy",
     "db:seed": "dotenv-cli -e ../../.env -- tsx prisma/seed.ts",
+    "db:seed:activity": "dotenv-cli -e ../../.env -- tsx prisma/seed-demo-activity.ts",
     "db:studio": "dotenv-cli -e ../../.env -- prisma studio",
     "openapi": "nest build && dotenv-cli -e ../../.env -- node dist/scripts/export-openapi.js"
   },
