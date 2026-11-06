@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { AppFooter } from '@/components/layout/app-footer';
 import { ThemeToggle } from '@/components/theme/theme';
+import { LandingBackground } from '@/components/landing/landing-background';
 
 const LEDGER = [
   ['Active projects', '2', '4 total'],
@@ -19,7 +20,8 @@ const CAPABILITIES: [string, string][] = [
 
 export default function Landing() {
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="isolate flex min-h-dvh flex-col">
+      <LandingBackground />
       <a href="#main" className="skip-link">
         Skip to content
       </a>
