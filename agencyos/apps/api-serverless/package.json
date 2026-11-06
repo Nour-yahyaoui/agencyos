@@ -1,0 +1,55 @@
+{
+  "name": "@agencyos/api-serverless",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vercel serverless deployment of the AgencyOS API (same domain modules as @agencyos/api)",
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "check:sync": "node scripts/sync.mjs --check",
+    "typecheck": "tsc --noEmit",
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod",
+    "build": "tsc -p tsconfig.json --outDir dist",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "build:vercel": "node vercel-build.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.900.0",
+    "@aws-sdk/s3-request-presigner": "^3.900.0",
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/jwt": "^11.0.1",
+    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/schedule": "^6.0.1",
+    "@nestjs/swagger": "^11.2.1",
+    "@nestjs/throttler": "^6.4.0",
+    "@prisma/client": "^6.18.0",
+    "bcryptjs": "^3.0.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "openai": "^6.7.0",
+    "reflect-metadata": "^0.2.2",
+    "resend": "^6.3.0",
+    "rxjs": "^7.8.2",
+    "stripe": "^19.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.9",
+    "@types/express": "^5.0.3",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.18.0",
+    "@vercel/node": "^5.3.24",
+    "prisma": "^6.18.0",
+    "typescript": "^5.9.3",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

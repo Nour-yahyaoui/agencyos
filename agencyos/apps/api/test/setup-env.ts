@@ -1,0 +1,13 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+config({ path: resolve(__dirname, '../../../.env'), quiet: true });
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://agencyos:agencyos_dev@127.0.0.1:5432/agencyos_test?schema=public';
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret-test-access-secret-1234';
+process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test-refresh-secret-test-refresh-secret-1234';
+process.env.COOKIE_SECURE = 'false';
+process.env.WEB_URL = 'http://localhost:3000';
+process.env.STRIPE_SECRET_KEY = 'sk_test_integration_dummy';
+process.env.STRIPE_WEBHOOK_SECRET = 'whsec_integration_test_secret';
+process.env.OPENAI_API_KEY = '';
+process.env.RESEND_API_KEY = '';

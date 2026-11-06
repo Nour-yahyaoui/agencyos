@@ -1,0 +1,24 @@
+import { test, expect } from '@playwright/test';
+import { login, unique } from './helpers';
+test('client sees only scoped portal data and can submit a ticket', async ({ page }) => {
+  await login(page, 'client@agencyos.dev');
+  await expect(page.getByRole('link', { name: 'Overview' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Team', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Clients', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Customer Portal v2' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Marketing Site Refresh' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Customer Portal v2' }).click();
+  await expect(page.getByText('Read-only board')).toBeVisible();
+  await page.getByRole('link', { name: /^Support/ }).click();
+  await page.getByRole('button', { name: 'New ticket' }).click();
+  const dialog = page.getByRole('dialog');
+  const subject = `Portal ticket ${unique()}`;
+  await dialog.getByRole('textbox').first().fill(subject);
+  await dialog.getByRole('textbox').nth(1).fill('The export button does not respond for large reports.');
+  await dialog.getByRole('button', { name: 'Submit ticket' }).click();
+  await expect(page.getByRole('link', { name: subject })).toBeVisible({ timeout: 15000 });
+  await page.getByRole('link', { name: 'Invoices', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'INV-2026-0002' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'INV-2026-0004' })).toHaveCount(0);
+});

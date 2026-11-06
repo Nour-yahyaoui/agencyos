@@ -1,0 +1,34 @@
+import { test, expect } from '@playwright/test';
+import { login, unique } from './helpers';
+test('registration creates a workspace and unconfigured AI is explicit', async ({ page }) => {
+  const id = unique();
+  await page.goto('/register');
+  await page.getByLabel('Your name').fill('E2E Owner');
+  await page.getByLabel('Agency name').fill(`E2E Agency ${id}`);
+  await page.getByLabel('Work email').fill(`e2e-${id}@test.dev`);
+  await page.getByLabel(/^Password/).fill('Password123!');
+  await page.getByRole('button', { name: 'Create workspace' }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+  await expect(page.getByRole('heading', { name: /Good to see you/ })).toBeVisible();
+  await page.getByRole('link', { name: 'AI assistant' }).click();
+  await expect(page.getByText('OpenAI is not configured')).toBeVisible();
+  await page.getByRole('button', { name: 'Generate analysis' }).click();
+  await expect(page.getByText(/OpenAI is not configured/).last()).toBeVisible();
+});
+test('owner sends an invoice and client sees it in the portal', async ({ page }) => {
+  const id = unique();
+  await login(page, 'owner@agencyos.dev');
+  await page.getByRole('link', { name: 'Billing', exact: true }).click();
+  await page.getByRole('button', { name: 'New invoice' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('combobox').first().click();
+  await page.getByRole('option', { name: 'Bluewave Health' }).click();
+  await dialog.getByPlaceholder('Description').fill(`E2E service ${id}`);
+  await dialog.getByPlaceholder('Unit price').fill('250');
+  await dialog.getByRole('button', { name: 'Create draft' }).click();
+  await expect(page.getByRole('link', { name: /INV-/ }).first()).toBeVisible({ timeout: 15000 });
+  await page.getByRole('link', { name: /INV-/ }).first().click();
+  await page.getByRole('button', { name: 'Send to client' }).click();
+  await expect(page.getByRole('button', { name: 'Pay with Stripe' })).toBeVisible();
+  await expect(page.getByText('Stripe is not configured')).toBeVisible();
+});
