@@ -82,7 +82,7 @@ The existing Vercel projects are `agencyos-web` and `agencyos-api`; the web proj
 4. Test preview deployments before promoting production. Verify sign-in, API requests, database readiness at `/api/v1/health/ready`, CSRF-protected mutations, and enabled integrations. A single fixed `WEB_URL` may not allow mutations from arbitrary preview URLs; configure preview origins and databases deliberately.
 5. Review and apply migrations separately; the serverless function does not run them automatically. Configure durable object storage if uploads must persist. Keep credentials out of source control.
 
-The project-specific [deployment guide](agencyos/docs/DEPLOYMENT.md) and [serverless API notes](agencyos/apps/api-serverless/README.md) provide further details. Connecting Git can cause later commits to trigger deployments; keep working production deployments in place until builds and preview checks pass.
+The [serverless API notes](agencyos/apps/api-serverless/README.md) provide further details. Connecting Git can cause later commits to trigger deployments; keep working production deployments in place until builds and preview checks pass.
 
 ## Security and operations
 
