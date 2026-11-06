@@ -39,6 +39,7 @@ function NavLink({
     <Link
       href={item.href}
       onClick={onNavigate}
+      data-tour={`nav-${item.href.slice(1)}`}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'group relative flex h-10 items-center gap-3 rounded-md px-3 text-sm transition-colors duration-fast',

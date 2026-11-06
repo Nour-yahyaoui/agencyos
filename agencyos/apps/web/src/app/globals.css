@@ -256,3 +256,73 @@
     transform: translateX(100%);
   }
 }
+
+/* Guided product tour */
+.tour-spotlight {
+  border-radius: var(--r-md);
+  box-shadow:
+    0 0 0 9999px rgb(9 12 10 / 0.55),
+    0 0 0 2px rgb(var(--accent) / 0.95),
+    0 0 28px rgb(var(--accent) / 0.4);
+  transition:
+    top var(--dur-slow) var(--ease-out),
+    left var(--dur-slow) var(--ease-out),
+    width var(--dur-slow) var(--ease-out),
+    height var(--dur-slow) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out);
+}
+.tour-spotlight-enter {
+  animation: tour-halo 2.6s var(--ease-out) 1;
+}
+.tour-card-in {
+  animation: tour-card-in 0.38s var(--ease-out) both;
+}
+.tour-text-in {
+  animation: tour-text-in 0.3s var(--ease-out) both;
+}
+@keyframes tour-halo {
+  0% {
+    box-shadow:
+      0 0 0 9999px rgb(9 12 10 / 0.55),
+      0 0 0 2px rgb(var(--accent) / 0.95),
+      0 0 0 0 rgb(var(--accent) / 0.55);
+  }
+  70% {
+    box-shadow:
+      0 0 0 9999px rgb(9 12 10 / 0.55),
+      0 0 0 2px rgb(var(--accent) / 0.95),
+      0 0 0 16px rgb(var(--accent) / 0);
+  }
+  100% {
+    box-shadow:
+      0 0 0 9999px rgb(9 12 10 / 0.55),
+      0 0 0 2px rgb(var(--accent) / 0.95),
+      0 0 28px rgb(var(--accent) / 0.4);
+  }
+}
+@keyframes tour-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tour-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+[data-tour-motion='reduced'] .tour-spotlight,
+[data-tour-motion='reduced'] .tour-card-in,
+[data-tour-motion='reduced'] .tour-text-in {
+  transition: none !important;
+  animation: none !important;
+}
