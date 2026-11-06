@@ -1,0 +1,72 @@
+# Local full-stack demo: PostgreSQL + API + Web.
+#   docker compose up --build
+#   docker compose --profile seed up --build   # also loads deterministic demo data
+# NOTE: these files are authored and reviewed but were NOT executed in the build
+# sandbox (no Docker daemon available). See docs/DEPLOYMENT.md for the verification
+# checklist to run on a machine with Docker.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: agencyos
+      POSTGRES_PASSWORD: agencyos_dev
+      POSTGRES_DB: agencyos
+    ports: ['5432:5432']
+    volumes: ['db-data:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U agencyos -d agencyos']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: development            # demo mode: allows seed + reset links; use production for real deployments
+      DATABASE_URL: postgresql://agencyos:agencyos_dev@db:5432/agencyos?schema=public
+      API_PORT: '4000'
+      WEB_URL: http://localhost:3000
+      JWT_ACCESS_SECRET: compose-demo-access-secret-change-me-32chars
+      JWT_REFRESH_SECRET: compose-demo-refresh-secret-change-me-32chars
+      COOKIE_SECURE: 'false'
+    ports: ['4000:4000']
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes: ['api-storage:/repo/apps/api/storage']
+
+  seed:
+    profiles: ['seed']
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: development
+      RUN_SEED: 'true'
+      DATABASE_URL: postgresql://agencyos:agencyos_dev@db:5432/agencyos?schema=public
+      JWT_ACCESS_SECRET: compose-demo-access-secret-change-me-32chars
+      JWT_REFRESH_SECRET: compose-demo-refresh-secret-change-me-32chars
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:4000
+      NEXT_PUBLIC_API_URL: /api/v1
+      NEXT_PUBLIC_DEMO_MODE: 'true'
+    ports: ['3000:3000']
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  db-data:
+  api-storage:
