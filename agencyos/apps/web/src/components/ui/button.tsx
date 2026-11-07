@@ -42,8 +42,8 @@ export interface ButtonProps
 }
 
 /**
- * `loading` swaps the label for a spinner without changing the button's width, so the row
- * doesn't jump while a request is in flight.
+ * `loading` keeps the action's label visible and disables repeat submissions while the
+ * request is in flight. The shared indicator is decorative; the live status announces it.
  */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, loading, children, disabled, ...props }, ref) => {
@@ -56,16 +56,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       );
     }
     return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }), 'relative')}
-        ref={ref}
-        disabled={disabled || loading}
-        aria-busy={loading || undefined}
-        {...props}
-      >
-        {loading && <Loader2 className="animate-spin" aria-hidden />}
-        {children}
-      </Comp>
+      <>
+        <Comp
+          className={cn(buttonVariants({ variant, size, className }), 'relative', props.type === 'submit' && 'submit-button', loading && 'button-loading')}
+          ref={ref}
+          disabled={disabled || loading}
+          aria-busy={loading || undefined}
+          {...props}
+        >
+          {loading && <Loader2 className="button-loading-spinner" aria-hidden />}
+          {children}
+        </Comp>
+        <span className="sr-only" role="status" aria-live="polite">{loading ? 'Working, please wait.' : ''}</span>
+      </>
     );
   },
 );
