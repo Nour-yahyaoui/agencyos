@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { AppFooter } from '@/components/layout/app-footer';
+import { BrandMark } from '@/components/layout/brand-mark';
 import { ThemeToggle } from '@/components/theme/theme';
 
 const LEDGER = [
@@ -26,10 +27,7 @@ export default function Landing() {
 
       <header className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-8">
         <Link href="/" className="inline-flex items-center gap-2.5">
-          <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-sm bg-accent font-mono text-sm font-semibold text-accent-contrast">
-            A
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight">AgencyOS</span>
+          <BrandMark />
         </Link>
         <nav aria-label="Account" className="flex items-center gap-2">
           <ThemeToggle compact className="hidden sm:inline-flex" />

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { ADMIN_NAV, FOOTER_NAV, NAV_SECTIONS, isActivePath, type NavItem } from '@/lib/nav';
 import { SIDEBAR_MAX, SIDEBAR_MIN } from '@/lib/sidebar';
 import { Avatar } from '@/components/ui/avatar';
+import { BrandMark } from '@/components/layout/brand-mark';
 import { Tooltip } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
@@ -105,13 +106,7 @@ export function Sidebar({
     <div className="relative flex h-dvh flex-col border-e border-rail-border bg-rail [color-scheme:dark]">
       {/* Fixed: identity + workspace switcher */}
       <div className={cn('flex h-16 shrink-0 items-center gap-2.5 border-b border-rail-border px-4', rail && 'justify-center px-0')}>
-        <span
-          aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-accent font-mono text-sm font-semibold text-accent-contrast"
-        >
-          A
-        </span>
-        {!rail && <span className="truncate text-[15px] font-semibold tracking-tight text-white">AgencyOS</span>}
+        <BrandMark />
         {!overlay && !rail && (
           <Tooltip content="Collapse sidebar (⌘B)" side="bottom">
             <button
