@@ -20,6 +20,7 @@ COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/package.json ./package.json
 COPY --from=build /repo/apps/web/package.json ./apps/web/package.json
 COPY --from=build /repo/apps/web/.next ./apps/web/.next
+COPY --from=build /repo/apps/web/public ./apps/web/public
 COPY --from=build /repo/apps/web/next.config.ts ./apps/web/next.config.ts
 COPY --from=build /repo/apps/web/tsconfig.json ./apps/web/tsconfig.json
 USER node

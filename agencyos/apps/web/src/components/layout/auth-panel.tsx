@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AppFooter } from '@/components/layout/app-footer';
+import { BrandMark } from '@/components/layout/brand-mark';
 import { ThemeToggle } from '@/components/theme/theme';
 
 /**
@@ -14,10 +15,7 @@ export function AuthPanel({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-dvh flex-col lg:flex-row">
       <aside className="relative flex shrink-0 flex-col justify-between gap-8 bg-rail px-6 py-6 [color-scheme:dark] lg:w-[42%] lg:max-w-xl lg:px-12 lg:py-12">
         <Link href="/" className="inline-flex items-center gap-2.5 self-start">
-          <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-sm bg-accent font-mono text-sm font-semibold text-accent-contrast">
-            A
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight text-white">AgencyOS</span>
+          <BrandMark />
         </Link>
 
         <div className="hidden lg:block">
