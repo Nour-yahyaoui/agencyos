@@ -45,6 +45,7 @@ export function BottomNav({ items, unread }: { items: NavItem[]; unread: number 
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  data-tour={`nav-${item.href.slice(1)}`}
                   aria-current={active ? 'page' : undefined}
                   onClick={(e) => {
                     // Tapping where you already are takes you back to the top of the section.

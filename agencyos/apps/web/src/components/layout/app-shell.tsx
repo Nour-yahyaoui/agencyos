@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowLeft, Bell, Menu, PanelLeftOpen, X } from 'lucide-react';
+import { ArrowLeft, Bell, Compass, Menu, PanelLeftOpen, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/providers';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,7 @@ import { AppFooter } from '@/components/layout/app-footer';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { Sidebar } from '@/components/layout/sidebar';
 import { useSidebarResize } from '@/components/layout/use-sidebar-resize';
+import { TourProvider, useTour } from '@/components/onboarding/tour';
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = React.useState(false);
@@ -42,8 +43,9 @@ function useMediaQuery(query: string) {
  * Before hydration both navs are in the tree but CSS-gated, so the first paint is correct on
  * every device; after hydration only the active one stays mounted.
  */
-export function AppShell({ children, initialSidebar }: { children: React.ReactNode; initialSidebar: SidebarState }) {
+function AppShellContent({ children, initialSidebar }: { children: React.ReactNode; initialSidebar: SidebarState }) {
   const { user, org, role, isLoading, isClient, isManagement } = useAuth();
+  const { startTour } = useTour();
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
@@ -156,9 +158,14 @@ export function AppShell({ children, initialSidebar }: { children: React.ReactNo
 
             <div className="flex items-center gap-1.5">
               {desktop && <ThemeToggle compact className="me-1" />}
+              <Tooltip content="Take the tour" side="bottom">
+                <Button variant="ghost" size="icon" onClick={startTour} aria-label="Take the tour">
+                  <Compass aria-hidden />
+                </Button>
+              </Tooltip>
               <Tooltip content="Notifications" side="bottom">
                 <Button variant="ghost" size="icon" asChild className="relative">
-                  <Link href="/notifications" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
+                  <Link href="/notifications" data-tour="notifications" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
                     <Bell aria-hidden />
                     {unread > 0 && (
                       <span className="absolute end-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold tabular-nums text-accent-contrast">
@@ -189,6 +196,14 @@ export function AppShell({ children, initialSidebar }: { children: React.ReactNo
         {showBottomNav && <BottomNav items={items} unread={unread} />}
       </div>
     </TooltipProvider>
+  );
+}
+
+export function AppShell({ children, initialSidebar }: { children: React.ReactNode; initialSidebar: SidebarState }) {
+  return (
+    <TourProvider>
+      <AppShellContent initialSidebar={initialSidebar}>{children}</AppShellContent>
+    </TourProvider>
   );
 }
 
