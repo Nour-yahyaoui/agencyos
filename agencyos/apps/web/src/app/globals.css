@@ -326,3 +326,13 @@
   transition: none !important;
   animation: none !important;
 }
+
+/* Horizontal edge fade for scrollable tab strips on phones; off where nothing scrolls. */
+.scroll-fade-x {
+  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+}
+@media (min-width: 640px) {
+  .scroll-fade-x {
+    mask-image: none;
+  }
+}
