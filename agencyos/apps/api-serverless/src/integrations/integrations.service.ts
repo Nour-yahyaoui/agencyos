@@ -6,7 +6,7 @@ import { Resend } from 'resend';
 import Stripe from 'stripe';
 import OpenAI from 'openai';
 import { promises as fs } from 'fs';
-import { join, resolve } from 'path';
+import { isAbsolute, join, relative, resolve, sep } from 'path';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -32,7 +32,14 @@ export class IntegrationsService {
    * filesystem is read-only, so /tmp is used and the files are explicitly reported as
    * ephemeral; durable storage requires S3-compatible credentials.
    */
-  private storageRoot() { return process.env.STORAGE_DIR || (process.env.VERCEL ? '/tmp/agencyos-storage' : resolve(process.cwd(), 'storage')); }
+  private storageRoot() { return resolve(process.env.STORAGE_DIR || (process.env.VERCEL ? '/tmp/agencyos-storage' : resolve(process.cwd(), 'storage'))); }
+  private localPath(key: string) {
+    const root = this.storageRoot();
+    const path = resolve(root, key);
+    const rel = relative(root, path);
+    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error('Invalid storage key');
+    return path;
+  }
   status() {
     return {
       stripe: { configured: !!this.stripe, webhookConfigured: !!this.config.get('STRIPE_WEBHOOK_SECRET'), mode: this.stripe ? 'test-or-live-key-not-disclosed' : 'unavailable' },
@@ -54,9 +61,7 @@ export class IntegrationsService {
   }
   async putFile(key: string, body: Buffer, mimeType: string) {
     if (this.s3) { await this.s3.send(new PutObjectCommand({ Bucket: this.config.getOrThrow('S3_BUCKET'), Key: key, Body: body, ContentType: mimeType })); return 'S3' as const; }
-    const root = this.storageRoot();
-    const path = join(root, key);
-    if (!path.startsWith(root)) throw new Error('Invalid storage key');
+    const path = this.localPath(key);
     await fs.mkdir(join(path, '..'), { recursive: true });
     await fs.writeFile(path, body);
     return 'LOCAL' as const;
@@ -66,16 +71,13 @@ export class IntegrationsService {
       const res = await this.s3.send(new GetObjectCommand({ Bucket: this.config.getOrThrow('S3_BUCKET'), Key: key }));
       return Buffer.from(await res.Body!.transformToByteArray());
     }
-    const root = this.storageRoot();
-    const path = join(root, key);
-    if (!path.startsWith(root)) throw new Error('Invalid storage key');
+    const path = this.localPath(key);
     return fs.readFile(path);
   }
   async deleteFile(key: string) {
     if (this.s3) { await this.s3.send(new DeleteObjectCommand({ Bucket: this.config.getOrThrow('S3_BUCKET'), Key: key })); return; }
-    const root = this.storageRoot();
-    const path = join(root, key);
-    if (path.startsWith(root)) await fs.unlink(path).catch(() => undefined);
+    const path = this.localPath(key);
+    await fs.unlink(path).catch(() => undefined);
   }
   async signedDownload(key: string) {
     if (!this.s3) return null;

@@ -16,6 +16,7 @@ describe('AgencyOS API integration workflows', () => {
     expect(me.body.memberships[0].role).toBe('OWNER');
     const org = await api(app).get(`/api/v1/organizations/${owner.orgId}`).set(auth(owner.token, owner.orgId)).expect(200);
     expect(org.body.subscription.status).toBe('TRIALING');
+    await api(app).get(`/api/v1/organizations/${other.orgId}`).set(auth(owner.token, owner.orgId)).expect(403);
   });
 
   it('2. creates an additional organization for the same user', async () => {
@@ -84,6 +85,17 @@ describe('AgencyOS API integration workflows', () => {
     await api(app).post(`/api/v1/billing/invoices/${invoiceId}/send`).set(auth(owner.token, owner.orgId)).expect(201);
     const clientInvoices = await api(app).get('/api/v1/billing/invoices').set(auth(clientToken, owner.orgId)).expect(200);
     expect(clientInvoices.body.data.map((i: any) => i.id)).toEqual([invoiceId]); // draft hidden
+    const draftSearch = await api(app).get('/api/v1/billing/invoices?status=DRAFT').set(auth(clientToken, owner.orgId)).expect(200);
+    expect(draftSearch.body.data).toEqual([]);
+    const otherClient = await api(app).post('/api/v1/clients').set(auth(owner.token, owner.orgId)).send({ name: 'Other client' }).expect(201);
+    const otherInvoice = await api(app).post('/api/v1/billing/invoices').set(auth(owner.token, owner.orgId)).send({ clientId: otherClient.body.id, dueDate: new Date().toISOString(), items: [{ description: 'Other client', quantity: 1, unitPrice: 10 }] }).expect(201);
+    await api(app).post(`/api/v1/billing/invoices/${otherInvoice.body.id}/send`).set(auth(owner.token, owner.orgId)).expect(201);
+    const crossClientSearch = await api(app).get(`/api/v1/billing/invoices?clientId=${otherClient.body.id}`).set(auth(clientToken, owner.orgId)).expect(200);
+    expect(crossClientSearch.body.data).toEqual([]);
+    const ownClient = await api(app).get(`/api/v1/clients/${clientId}`).set(auth(clientToken, owner.orgId)).expect(200);
+    expect(ownClient.body).not.toHaveProperty('notes');
+    expect(ownClient.body.invoices.some((i: any) => i.id === draftInvoiceId)).toBe(false);
+    await api(app).get(`/api/v1/clients/${otherClient.body.id}`).set(auth(clientToken, owner.orgId)).expect(404);
     await api(app).get(`/api/v1/billing/invoices/${draftInvoiceId}`).set(auth(clientToken, owner.orgId)).expect(404);
   });
 

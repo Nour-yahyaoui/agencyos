@@ -15,14 +15,16 @@ export class BillingService {
   private readonly logger = new Logger('Billing');
   constructor(private prisma: PrismaService, private config: ConfigService, private integrations: IntegrationsService, private audit: AuditService, private notifications: NotificationService) {}
 
-  private invoiceWhere(s: TenantScope, status?: string): Prisma.InvoiceWhereInput { return { organizationId: s.organizationId, ...(s.role === 'CLIENT' ? { clientId: s.clientId ?? '__none__', status: { not: 'DRAFT' } } : {}), ...(status ? { status: status as InvoiceStatus } : {}) }; }
+  private invoiceWhere(s: TenantScope, status?: string): Prisma.InvoiceWhereInput {
+    return { organizationId: s.organizationId, ...(s.role === 'CLIENT' ? { clientId: s.clientId ?? '__none__', status: { not: 'DRAFT' } } : {}), ...(status ? { AND: [{ status: status as InvoiceStatus }] } : {}) };
+  }
   async list(s: TenantScope, q: { page: number; limit: number; skip: number; q?: string; status?: string; clientId?: string }) {
-    const where: Prisma.InvoiceWhereInput = { ...this.invoiceWhere(s, q.status), ...(q.clientId ? { clientId: q.clientId } : {}), ...(q.q ? { OR: [{ number: { contains: q.q, mode: 'insensitive' } }, { client: { name: { contains: q.q, mode: 'insensitive' } } }] } : {}) };
+    const where: Prisma.InvoiceWhereInput = { AND: [this.invoiceWhere(s, q.status), ...(q.clientId ? [{ clientId: q.clientId }] : []), ...(q.q ? [{ OR: [{ number: { contains: q.q, mode: 'insensitive' as const } }, { client: { name: { contains: q.q, mode: 'insensitive' as const } } }] }] : [])] };
     const [data, total] = await Promise.all([this.prisma.invoice.findMany({ where, skip: q.skip, take: q.limit, orderBy: { createdAt: 'desc' }, include: { client: { select: { id: true, name: true } }, project: { select: { id: true, name: true } }, items: true, payments: { where: { status: 'SUCCEEDED' }, select: { amount: true } } } }), this.prisma.invoice.count({ where })]);
     return { data, meta: { total, page: q.page, limit: q.limit, totalPages: Math.max(1, Math.ceil(total / q.limit)) } };
   }
   async get(s: TenantScope, id: string) {
-    const invoice = await this.prisma.invoice.findFirst({ where: { id, ...this.invoiceWhere(s) }, include: { client: true, project: { select: { id: true, name: true, budget: true } }, items: true, payments: { orderBy: { createdAt: 'desc' } } } });
+    const invoice = await this.prisma.invoice.findFirst({ where: { id, ...this.invoiceWhere(s) }, include: { client: { select: { id: true, name: true, company: true } }, project: { select: { id: true, name: true, budget: true } }, items: true, payments: { orderBy: { createdAt: 'desc' } } } });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return invoice;
   }
@@ -44,6 +46,12 @@ export class BillingService {
     const existing = await this.get(s, id);
     if (existing.status === 'PAID') throw new BadRequestException('Paid invoices are immutable');
     if (existing.status === 'VOID' && dto.status !== 'DRAFT') throw new BadRequestException('Void invoices cannot be edited');
+    const client = await this.prisma.client.findFirst({ where: { id: dto.clientId, organizationId: s.organizationId } });
+    if (!client) throw new BadRequestException('Client not found');
+    if (dto.projectId) {
+      const project = await this.prisma.project.findFirst({ where: { id: dto.projectId, organizationId: s.organizationId, clientId: dto.clientId } });
+      if (!project) throw new BadRequestException('Project not found for this client');
+    }
     const calc = calculateInvoice(dto.items, dto.taxRate ?? 0);
     const invoice = await this.prisma.$transaction(async (tx) => {
       await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });

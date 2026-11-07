@@ -2,7 +2,7 @@
   "name": "agencyos",
   "private": true,
   "version": "1.0.0",
-  "description": "AgencyOS \u2014 multi-tenant agency operations platform",
+  "description": "AgencyOS — multi-tenant agency operations platform",
   "workspaces": [
     "apps/*"
   ],
@@ -31,5 +31,13 @@
     "@playwright/test": "^1.56.1",
     "concurrently": "^9.2.1",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@nestjs/platform-express": {
+      "multer": "^2.5.0"
+    },
+    "next": {
+      "postcss": "^8.5.32"
+    }
   }
 }

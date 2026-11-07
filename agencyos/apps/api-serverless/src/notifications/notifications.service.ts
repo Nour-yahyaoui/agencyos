@@ -17,7 +17,10 @@ export class NotificationService {
     });
     if (input.email) {
       const user = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { email: true } });
-      if (user) await this.integrations.sendEmail(user.email, input.title, `<p>${input.body}</p>`);
+      if (user) {
+        const escapedBody = input.body.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+        await this.integrations.sendEmail(user.email, input.title, `<p>${escapedBody}</p>`);
+      }
     }
     return notification;
   }
@@ -50,13 +53,14 @@ export class NotificationService {
     return this.deadlineReminders();
   }
 
-  async deadlineReminders() {
+  async deadlineReminders(organizationId?: string) {
     const soon = new Date(Date.now() + 48 * 3600000);
-    const tasks = await this.prisma.task.findMany({ where: { status: { not: 'DONE' }, dueDate: { not: null, lte: soon }, assigneeId: { not: null } }, include: { project: { select: { name: true } } } });
+    const tasks = await this.prisma.task.findMany({ where: { ...(organizationId ? { organizationId } : {}), status: { not: 'DONE' }, dueDate: { not: null, lte: soon }, assigneeId: { not: null } }, include: { project: { select: { name: true } } } });
     let created = 0;
     for (const t of tasks) {
       const day = t.dueDate!.toISOString().slice(0, 10);
       const before = await this.prisma.notification.count({ where: { userId: t.assigneeId!, dedupeKey: `deadline:${t.id}:${day}` } });
+      if (before) continue;
       await this.notify({ organizationId: t.organizationId, userId: t.assigneeId!, type: 'DEADLINE', title: `Deadline approaching: ${t.title}`, body: `"${t.title}" in ${t.project.name} is due ${t.dueDate!.toISOString().slice(0, 10)}.`, link: `/projects/${t.projectId}`, dedupeKey: `deadline:${t.id}:${day}`, email: true });
       if (!before) created++;
     }

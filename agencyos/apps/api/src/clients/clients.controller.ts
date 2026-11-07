@@ -23,14 +23,17 @@ export class ClientsController {
       this.prisma.client.findMany({ where, skip: query.skip, take: query.limit, orderBy: { createdAt: 'desc' }, include: { contacts: true, accountManager: { select: { id: true, name: true, email: true } }, _count: { select: { projects: true, invoices: true, tickets: true } } } }),
       this.prisma.client.count({ where }),
     ]);
-    return paginated(data, total, query.page, query.limit);
+    // Internal client notes are not part of the client portal.
+    const visible = s.role === 'CLIENT' ? data.map(({ notes: _notes, ...client }) => client) : data;
+    return paginated(visible, total, query.page, query.limit);
   }
   @Get(':id') async get(@Scope() s: TenantScope, @Param('id') id: string) {
-    const client = await this.prisma.client.findFirst({ where: { id, ...this.where(s) }, include: { contacts: true, accountManager: { select: { id: true, name: true, email: true } }, projects: { include: { _count: { select: { tasks: true } } }, orderBy: { createdAt: 'desc' } }, invoices: { orderBy: { createdAt: 'desc' }, take: 10 }, tickets: { orderBy: { createdAt: 'desc' }, take: 10 }, documents: { orderBy: { createdAt: 'desc' }, take: 20 } } });
+    const client = await this.prisma.client.findFirst({ where: { AND: [{ id }, this.where(s)] }, include: { contacts: true, accountManager: { select: { id: true, name: true, email: true } }, projects: { include: { _count: { select: { tasks: true } } }, orderBy: { createdAt: 'desc' } }, invoices: { ...(s.role === 'CLIENT' ? { where: { status: { not: 'DRAFT' as const } } } : {}), orderBy: { createdAt: 'desc' }, take: 10 }, tickets: { orderBy: { createdAt: 'desc' }, take: 10 }, documents: { orderBy: { createdAt: 'desc' }, take: 20 } } });
     if (!client) throw new NotFoundException('Client not found');
+    if (s.role === 'CLIENT') { const { notes: _notes, ...visible } = client; return visible; }
     return client;
   }
-  @Get(':id/activity') async activity(@Scope() s: TenantScope, @Param('id') id: string) {
+  @Get(':id/activity') @Roles('OWNER', 'MANAGER', 'DEVELOPER') async activity(@Scope() s: TenantScope, @Param('id') id: string) {
     await this.get(s, id);
     return this.prisma.auditEvent.findMany({ where: { organizationId: s.organizationId, OR: [{ entityId: id }, { metadata: { path: ['clientId'], equals: id } }] }, orderBy: { createdAt: 'desc' }, take: 50, include: { actor: { select: { name: true } } } });
   }

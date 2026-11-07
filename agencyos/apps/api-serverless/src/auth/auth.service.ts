@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomToken, sha256, slugify } from '../common/utils/security';
 import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AcceptInvitationDto, LoginDto, RegisterDto } from './dto';
 import { IntegrationsService } from '../integrations/integrations.service';
@@ -42,13 +43,15 @@ export class AuthService {
     return this.issueSession(user.id);
   }
 
-  async issueSession(userId: string, familyId: string = randomUUID()) {
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, email: true, name: true, platformRole: true } });
+  async issueSession(userId: string, familyId: string = randomUUID(), db: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const user = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, email: true, name: true, platformRole: true, isActive: true } });
+    if (!user.isActive) throw new UnauthorizedException('Account is disabled');
     const sessionId = randomUUID();
     const refresh = await this.jwt.signAsync({ sub: userId, sid: sessionId, family: familyId, type: 'refresh' }, { secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: this.refreshTtl() });
-    await this.prisma.refreshSession.create({ data: { id: sessionId, userId, familyId, tokenHash: sha256(refresh), expiresAt: new Date(Date.now() + this.refreshTtl() * 1000) } });
+    await db.refreshSession.create({ data: { id: sessionId, userId, familyId, tokenHash: sha256(refresh), expiresAt: new Date(Date.now() + this.refreshTtl() * 1000) } });
     const access = await this.jwt.signAsync({ sub: userId, type: 'access' }, { secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: this.accessTtl() });
-    return { user, accessToken: access, refreshToken: refresh, csrfToken: randomToken(24), expiresIn: this.accessTtl() };
+    const { isActive: _isActive, ...safeUser } = user;
+    return { user: safeUser, accessToken: access, refreshToken: refresh, csrfToken: randomToken(24), expiresIn: this.accessTtl() };
   }
 
   async refresh(refreshToken?: string) {
@@ -57,14 +60,18 @@ export class AuthService {
     try { payload = await this.jwt.verifyAsync(refreshToken, { secret: this.config.getOrThrow('JWT_REFRESH_SECRET') }); } catch { throw new UnauthorizedException('Invalid refresh session'); }
     if (payload.type !== 'refresh') throw new UnauthorizedException('Invalid token type');
     const session = await this.prisma.refreshSession.findUnique({ where: { id: payload.sid } });
-    if (!session || session.tokenHash !== sha256(refreshToken) || session.expiresAt < new Date()) throw new UnauthorizedException('Refresh session expired');
-    if (session.revokedAt) {
-      // Reuse of a rotated token revokes the whole family (theft mitigation).
-      await this.prisma.refreshSession.updateMany({ where: { familyId: session.familyId, revokedAt: null }, data: { revokedAt: new Date() } });
-      throw new UnauthorizedException('Refresh token reuse detected');
-    }
-    const next = await this.issueSession(payload.sub, session.familyId);
-    await this.prisma.refreshSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+    if (!session || session.tokenHash !== sha256(refreshToken) || session.userId !== payload.sub || session.familyId !== payload.family || session.expiresAt < new Date()) throw new UnauthorizedException('Refresh session expired');
+    // Atomically claim the old session and create its successor in one transaction. A
+    // concurrent reuse waits for the claim, then revokes the entire committed family.
+    const next = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.refreshSession.updateMany({ where: { id: session.id, revokedAt: null, expiresAt: { gt: new Date() } }, data: { revokedAt: new Date() } });
+      if (claimed.count !== 1) {
+        await tx.refreshSession.updateMany({ where: { familyId: session.familyId, revokedAt: null }, data: { revokedAt: new Date() } });
+        return null;
+      }
+      return this.issueSession(session.userId, session.familyId, tx);
+    });
+    if (!next) throw new UnauthorizedException('Refresh token reuse detected');
     return next;
   }
 
@@ -90,9 +97,11 @@ export class AuthService {
     const url = `${this.config.getOrThrow('WEB_URL')}/reset-password?token=${token}`;
     const sent = await this.integrations.sendEmail(user.email, 'Reset your AgencyOS password', `<p>Reset your password within one hour:</p><p><a href="${url}">${url}</a></p>`);
     await this.audit.record({ actorId: user.id, action: 'auth.password_reset_requested', entityType: 'User', entityId: user.id });
+    // Never disclose account existence or delivery outcome in production.
+    if (this.config.get('NODE_ENV') === 'production') return generic;
     // Development convenience only; never returned in production.
-    if (!sent && this.config.get('NODE_ENV') !== 'production') return { ...generic, developmentResetUrl: url, emailDelivered: false };
-    return { ...generic, emailDelivered: sent };
+    if (!sent) return { ...generic, developmentResetUrl: url, emailDelivered: false };
+    return generic;
   }
 
   async resetPassword(token: string, password: string) {
@@ -100,7 +109,9 @@ export class AuthService {
     if (!record || record.usedAt || record.expiresAt < new Date()) throw new BadRequestException('Invalid or expired recovery token');
     const passwordHash = await bcrypt.hash(password, 12);
     await this.prisma.$transaction(async (tx) => {
-      await tx.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+      const claimed = await tx.passwordResetToken.updateMany({ where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+      if (claimed.count !== 1) throw new BadRequestException('Invalid or expired recovery token');
+      await tx.passwordResetToken.updateMany({ where: { userId: record.userId, usedAt: null }, data: { usedAt: new Date() } });
       await tx.user.update({ where: { id: record.userId }, data: { passwordHash } });
       await tx.refreshSession.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } });
     });
