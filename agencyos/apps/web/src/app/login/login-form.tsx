@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { ApiError, authApi } from '@/lib/api';
 import { useAuth } from '@/lib/providers';
 import { useHydrated } from '@/lib/use-hydrated';
@@ -156,15 +156,8 @@ export function LoginForm({ next }: { next: string }) {
           </Link>
         </div>
 
-        <Button type="submit" className="h-11 w-full" disabled={!hydrated || status === 'submitting'}>
-          {status === 'submitting' ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              Signing in…
-            </>
-          ) : (
-            'Sign in'
-          )}
+        <Button type="submit" className="h-11 w-full" disabled={!hydrated} loading={status === 'submitting'}>
+          {status === 'submitting' ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
 

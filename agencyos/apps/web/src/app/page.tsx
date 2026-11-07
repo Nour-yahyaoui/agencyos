@@ -1,133 +1,38 @@
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, CircleDollarSign, Layers3, LayoutDashboard, LockKeyhole, MoreHorizontal, Sparkles, UsersRound } from 'lucide-react';
 import { AppFooter } from '@/components/layout/app-footer';
 import { BrandMark } from '@/components/layout/brand-mark';
-import { ThemeToggle } from '@/components/theme/theme';
+import './landing.css';
 
-const LEDGER = [
-  ['Active projects', '2', '4 total'],
-  ['Completion', '29%', 'Tasks completed'],
-  ['Overdue', '2', 'Past their due date'],
-  ['Outstanding', '$38,880', 'Unpaid invoices'],
+const CAPABILITIES = [
+  { number: '01', icon: Layers3, title: 'Delivery, in sync', description: 'Projects, tasks, and milestones together — so the whole team knows what moves next.', tag: 'PROJECTS & TASKS' },
+  { number: '02', icon: CircleDollarSign, title: 'A clearer cash flow', description: 'Keep invoices, payments, and outstanding balances close to the work behind them.', tag: 'FINANCE & BILLING' },
+  { number: '03', icon: UsersRound, title: 'Better client connection', description: 'Give clients their own space to follow progress, without opening up your entire workspace.', tag: 'CLIENT PORTAL' },
+  { number: '04', icon: LockKeyhole, title: 'The right access', description: 'Organize your team with role-based permissions and organization-scoped data.', tag: 'ROLES & PERMISSIONS' },
+];
+const PROJECTS = [
+  { name: 'Brand identity', client: 'Northstar Studio', status: 'In progress', progress: '72%', tone: 'mint' },
+  { name: 'Website redesign', client: 'Horizon Co.', status: 'In progress', progress: '48%', tone: 'lavender' },
+  { name: 'Campaign launch', client: 'Goodform', status: 'In review', progress: '90%', tone: 'peach' },
 ];
 
-const CAPABILITIES: [string, string][] = [
-  ['Client delivery', 'Kanban boards, task dependencies, milestones, and automatic overdue detection across every project.'],
-  ['Finance', 'Invoices with line items, Stripe payments with signature verification, subscriptions, and outstanding balances.'],
-  ['Scoped access', 'Organisation-scoped queries, role-based permissions, and a separate portal where clients see only their own work.'],
-  ['Analytics', 'Dashboard figures computed from live records: workload per member, completion rate, revenue by month.'],
-];
+function WorkspacePreview() {
+  return <div className="preview-frame" aria-label="Illustrative AgencyOS workspace preview">
+    <div className="preview-topbar"><div className="preview-dots" aria-hidden="true"><i /><i /><i /></div><span>YOUR WORKSPACE, ALL IN ONE PLACE</span><span className="preview-topbar-end">AGENCYOS / OVERVIEW</span></div>
+    <div className="preview-body"><div className="preview-sidebar" aria-hidden="true"><div className="preview-brand"><span className="preview-brand-icon"><Sparkles size={13} /></span> Studio workspace</div><div className="preview-nav-label">WORKSPACE</div><div className="preview-nav-active"><LayoutDashboard size={14} /> Overview</div><div className="preview-nav-item"><Layers3 size={14} /> Projects</div><div className="preview-nav-item"><UsersRound size={14} /> Clients</div><div className="preview-nav-item"><CircleDollarSign size={14} /> Finance</div><div className="preview-sidebar-bottom"><span className="preview-avatar">S</span><span>Studio team<br /><small>Workspace</small></span></div></div>
+      <div className="preview-content"><div className="preview-heading"><div><span className="preview-eyebrow">YOUR WORKSPACE / OVERVIEW</span><h3>Good to see you <span>✳</span></h3><p>Here&apos;s what&apos;s happening across your studio.</p></div><div className="preview-date">Overview <span>↗</span></div></div>
+        <div className="preview-stats"><div><span>Active projects</span><strong>08 <small>↗</small></strong><em>Across your workspace</em></div><div><span>Tasks completed</span><strong>64 <small>↗</small></strong><em>Keeping things moving</em></div><div><span>Outstanding</span><strong>$12.4k</strong><em>Across open invoices</em></div></div>
+        <div className="preview-table-heading"><div><h4>Projects in motion</h4><p>A little progress, every day.</p></div><MoreHorizontal size={18} /></div>
+        <div className="preview-table"><div className="preview-table-label"><span>PROJECT</span><span>STATUS</span><span>PROGRESS</span></div>{PROJECTS.map((project) => <div className="preview-row" key={project.name}><div className="preview-project"><span className={`project-icon ${project.tone}`}>{project.name.charAt(0)}</span><span><strong>{project.name}</strong><small>{project.client}</small></span></div><span className="preview-status"><i />{project.status}</span><span className="preview-progress"><span><i style={{ width: project.progress }} /></span>{project.progress}</span></div>)}</div>
+      </div></div><div className="preview-caption"><span><i /> SAMPLE WORKSPACE</span><span>Illustrative data, made for this preview</span></div>
+  </div>;
+}
 
 export default function Landing() {
-  return (
-    <div className="flex min-h-dvh flex-col">
-      <a href="#main" className="skip-link">
-        Skip to content
-      </a>
-
-      <header className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-8">
-        <Link href="/" className="inline-flex items-center gap-2.5">
-          <BrandMark />
-        </Link>
-        <nav aria-label="Account" className="flex items-center gap-2">
-          <ThemeToggle compact className="hidden sm:inline-flex" />
-          <Link href="/login" className="inline-flex h-9 items-center rounded-sm px-3 text-sm font-medium text-ink-muted transition-colors duration-fast hover:bg-sunken hover:text-ink">
-            Sign in
-          </Link>
-          <Link href="/register" className="inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-sm font-medium text-accent-contrast transition-colors duration-fast hover:bg-accent-hover">
-            Create workspace
-          </Link>
-        </nav>
-      </header>
-
-      <main id="main" className="flex-1">
-        {/* Asymmetric: the claim on the left, the product's own figures on the right. */}
-        <section className="grid gap-10 px-4 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:py-24">
-          <div className="max-w-xl">
-            <h1 className="text-3xl font-semibold leading-[1.15] tracking-tight sm:text-[42px]">
-              What is late, and what is unpaid.
-            </h1>
-            <p className="mt-5 text-base leading-relaxed text-ink-muted">
-              AgencyOS keeps client delivery, project tracking, invoicing, and support in one workspace — with a
-              separate portal so clients see their own projects and nothing else.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href="/login"
-                className="inline-flex h-11 items-center gap-2 rounded-sm bg-accent px-5 text-sm font-medium text-accent-contrast transition-colors duration-fast hover:bg-accent-hover"
-              >
-                Explore the demo
-                <ArrowUpRight className="h-4 w-4" aria-hidden />
-              </Link>
-              <Link
-                href="/register"
-                className="inline-flex h-11 items-center rounded-sm border border-border-strong bg-surface px-5 text-sm font-medium transition-colors duration-fast hover:bg-sunken"
-              >
-                Create a workspace
-              </Link>
-            </div>
-            <p className="mt-5 text-xs text-ink-faint">
-              Seeded demo data. Sign in as owner, manager, developer, client, or platform admin.
-            </p>
-          </div>
-
-          {/* The signature, shown before sign-in so the product explains itself. */}
-          <div className="rounded-md border border-border bg-surface p-5 sm:p-7">
-            <p className="text-xs text-ink-muted">Northstar Studio · live workspace</p>
-            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-6 border-y border-border py-5">
-              {LEDGER.map(([label, value, hint], i) => (
-                <div key={label}>
-                  <dt className="text-xs text-ink-muted">{label}</dt>
-                  <dd
-                    data-figure
-                    className={`mt-1.5 inline-block font-mono text-[21px] font-medium leading-none tracking-tight sm:text-[25px] ${i === 2 ? 'border-b-2 border-accent pb-1.5' : ''}`}
-                  >
-                    {value}
-                  </dd>
-                  <p className="mt-2 text-xs text-ink-faint">{hint}</p>
-                </div>
-              ))}
-            </dl>
-            <p className="mt-4 text-xs text-ink-faint">
-              Every figure is computed from the database, not hardcoded in the page.
-            </p>
-          </div>
-        </section>
-
-        {/* A definition list, not four icon cards. */}
-        <section className="border-t border-border px-4 py-12 sm:px-8 sm:py-16">
-          <h2 className="text-lg font-semibold tracking-tight">What it covers</h2>
-          <dl className="mt-6 max-w-3xl divide-y divide-border border-t border-border">
-            {CAPABILITIES.map(([term, detail]) => (
-              <div key={term} className="grid gap-1 py-4 sm:grid-cols-[180px_1fr] sm:gap-8">
-                <dt className="text-sm font-medium">{term}</dt>
-                <dd className="text-sm leading-relaxed text-ink-muted">{detail}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        <section className="border-t border-border px-4 py-10 sm:px-8">
-          <h2 className="text-lg font-semibold tracking-tight">Under the hood</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-ink-muted">
-            Next.js App Router on the front, NestJS on the API, PostgreSQL via Prisma with row-level organisation
-            scoping. Refresh-token rotation, CSRF protection on every mutation, and an OpenAPI contract generated
-            from the running server. Deployed on Vercel against Neon.
-          </p>
-          <a
-            href="https://agencyos-api-kappa.vercel.app/api/docs"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent underline-offset-4 hover:underline"
-          >
-            Read the API reference
-            <ArrowUpRight className="h-4 w-4" aria-hidden />
-            <span className="sr-only">(opens in a new tab)</span>
-          </a>
-        </section>
-      </main>
-
-      <AppFooter />
-    </div>
-  );
+  return <div className="landing"><a href="#main" className="skip-link">Skip to content</a><div className="landing-hero-shell"><div className="landing-atmosphere" aria-hidden="true"><div className="landing-aurora" /><div className="landing-grid" /><div className="landing-glow" /><div className="landing-orbit orbit-one" /><div className="landing-orbit orbit-two" /></div>
+    <header className="landing-header landing-container"><Link href="/" aria-label="AgencyOS home" className="landing-logo"><BrandMark /><span>THE AGENCY<br />OPERATING SYSTEM</span></Link><nav aria-label="Main navigation" className="landing-nav"><a href="#capabilities">The platform</a><a href="#workspace">Inside AgencyOS</a></nav><nav aria-label="Account" className="landing-account"><Link className="landing-signin" href="/login">Sign in</Link><Link className="landing-header-cta" href="/register">Get started <ArrowUpRight size={15} aria-hidden="true" /></Link></nav></header>
+    <main id="main"><section className="landing-hero landing-container" aria-labelledby="hero-title"><div className="hero-copy"><div className="hero-kicker entrance entrance-1"><span className="live-dot" /> A LITTLE MORE FLOW, A LOT LESS CHAOS <Sparkles size={13} /></div><h1 id="hero-title" className="entrance entrance-2">Make space for<br /><span>your best work.</span></h1><p className="hero-description entrance entrance-3">A calmer way to run your agency. Bring your projects, people, and finances together — and keep the good work moving.</p><div className="hero-actions entrance entrance-4"><Link href="/register" className="landing-button button-primary">Create your workspace <ArrowUpRight size={17} aria-hidden="true" /></Link><Link href="/login" className="landing-button button-secondary">Explore the demo <ArrowRight size={17} aria-hidden="true" /></Link></div><div className="hero-note entrance entrance-5"><span><Check size={13} /> Projects &amp; delivery</span><i /><span><Check size={13} /> Finance &amp; clients</span><i /><span><Check size={13} /> One clear view</span></div></div><div className="hero-bottom-label" aria-hidden="true"><span>DESIGNED FOR THE WORK BEHIND THE WORK</span><span>SCROLL TO EXPLORE <ArrowDown size={13} /></span></div></section>
+    <section id="workspace" className="workspace-section landing-container" aria-labelledby="workspace-title"><div className="workspace-intro"><div><div className="section-kicker"><span /> A LITTLE CLARITY GOES A LONG WAY</div><h2 id="workspace-title">Everything in its<br /><em>right place.</em></h2></div><p>From the first brief to the final invoice, get a little more perspective on everything your agency is making happen.</p></div><div className="preview-wrap"><div className="preview-halo" aria-hidden="true" /><WorkspacePreview /></div></section>
+    <section id="capabilities" className="capabilities-section" aria-labelledby="capabilities-title"><div className="landing-container"><div className="capabilities-heading"><div><div className="section-kicker"><span /> MADE FOR THE WAY YOU WORK</div><h2 id="capabilities-title">Less juggling.<br /><em>More momentum.</em></h2></div><p>All the moving parts of agency life, thoughtfully connected in one place.</p></div><div className="capability-grid">{CAPABILITIES.map(({ number, icon: Icon, title, description, tag }) => <article className="capability-card" key={number}><div className="capability-top"><span className="capability-icon"><Icon size={20} strokeWidth={1.5} /></span><span>{number} / 04</span></div><div><p className="capability-tag">{tag}</p><h3>{title}</h3><p className="capability-description">{description}</p></div><ArrowUpRight className="capability-arrow" size={18} aria-hidden="true" /></article>)}</div></div></section>
+    <section className="landing-bottom"><div className="landing-container bottom-inner"><div><div className="section-kicker"><span /> YOUR NEXT CHAPTER STARTS HERE</div><h2>Make room for<br /><em>what matters.</em></h2><p>Less chasing updates. More making great things.</p><Link href="/register" className="landing-button button-primary">Create your workspace <ArrowUpRight size={17} aria-hidden="true" /></Link></div><div className="bottom-art" aria-hidden="true"><div className="bottom-art-ring ring-a" /><div className="bottom-art-ring ring-b" /><div className="bottom-art-ring ring-c" /><Sparkles size={34} strokeWidth={1} /></div></div></section></main></div><AppFooter className="landing-footer" /></div>;
 }

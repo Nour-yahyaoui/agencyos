@@ -336,3 +336,39 @@
     mask-image: none;
   }
 }
+
+/* Lightweight submit feedback shared by every form. Motion never delays the request. */
+.submit-button, .button-loading {
+  isolation: isolate;
+  overflow: hidden;
+}
+.submit-button::after, .button-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 20%, rgb(255 255 255 / 0.22) 50%, transparent 80%);
+  opacity: 0;
+  transform: translateX(-110%);
+}
+.submit-button:not(:disabled):active::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+.button-loading:disabled { opacity: 0.9; }
+.button-loading::after {
+  opacity: 1;
+  animation: submit-glint 2s ease-in-out infinite;
+}
+.button-loading-spinner { animation: submit-spin 0.8s linear infinite; }
+@keyframes submit-glint {
+  0%, 15% { transform: translateX(-110%); }
+  65%, 100% { transform: translateX(110%); }
+}
+@keyframes submit-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .button-loading::after { animation: none; opacity: 0; }
+  .button-loading-spinner { animation: none; }
+}
