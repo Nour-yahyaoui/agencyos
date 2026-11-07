@@ -11,7 +11,7 @@ export class ProjectsController {
   constructor(private service: ProjectsService) {}
   @Get() list(@Scope() s: TenantScope, @Query() q: ProjectQueryDto) { return this.service.list(s, { page: q.page, limit: q.limit, skip: q.skip, q: q.q, status: q.status, clientId: q.clientId }); }
   @Get(':id') get(@Scope() s: TenantScope, @Param('id') id: string) { return this.service.get(s, id); }
-  @Get(':id/activity') activity(@Scope() s: TenantScope, @Param('id') id: string) { return this.service.activity(s, id); }
+  @Get(':id/activity') @Roles('OWNER', 'MANAGER', 'DEVELOPER') activity(@Scope() s: TenantScope, @Param('id') id: string) { return this.service.activity(s, id); }
   @Post() @Roles('OWNER', 'MANAGER') create(@Scope() s: TenantScope, @Body() dto: CreateProjectDto) { return this.service.create(s, dto); }
   @Patch(':id') @Roles('OWNER', 'MANAGER') update(@Scope() s: TenantScope, @Param('id') id: string, @Body() dto: UpdateProjectDto) { return this.service.update(s, id, dto); }
   @Post(':id/members') @Roles('OWNER', 'MANAGER') addMember(@Scope() s: TenantScope, @Param('id') id: string, @Body() dto: ProjectMemberDto) { return this.service.addMember(s, id, dto.userId); }

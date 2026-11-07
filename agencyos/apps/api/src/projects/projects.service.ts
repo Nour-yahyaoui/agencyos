@@ -32,7 +32,7 @@ export class ProjectsService {
   }
   async get(s: TenantScope, id: string) {
     await this.assertAccess(s, id);
-    const p = await this.prisma.project.findUniqueOrThrow({ where: { id }, include: { client: true, members: { include: { user: { select: { id: true, name: true, email: true } } } }, milestones: { orderBy: { dueDate: 'asc' } }, tasks: { orderBy: [{ status: 'asc' }, { position: 'asc' }], include: { assignee: { select: { id: true, name: true, email: true } }, milestone: { select: { id: true, name: true } }, dependencies: { select: { prerequisiteId: true } }, _count: { select: { comments: true } } } }, documents: { orderBy: { createdAt: 'desc' } }, _count: { select: { invoices: true } } } });
+    const p = await this.prisma.project.findUniqueOrThrow({ where: { id }, include: { client: { select: { id: true, name: true, company: true } }, members: { include: { user: { select: { id: true, name: true, email: true } } } }, milestones: { orderBy: { dueDate: 'asc' } }, tasks: { orderBy: [{ status: 'asc' }, { position: 'asc' }], include: { assignee: { select: { id: true, name: true, email: true } }, milestone: { select: { id: true, name: true } }, dependencies: { select: { prerequisiteId: true } }, _count: { select: { comments: true } } } }, documents: { orderBy: { createdAt: 'desc' } }, _count: { select: { invoices: true } } } });
     const done = p.tasks.filter((t) => t.status === 'DONE').length;
     return { ...p, progress: p.tasks.length ? Math.round(done / p.tasks.length * 100) : 0 };
   }

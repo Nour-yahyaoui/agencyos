@@ -27,15 +27,30 @@ function getApp(): Promise<Express> {
   return cached;
 }
 
+class BodyTooLargeError extends Error {}
+class InvalidJsonError extends Error {}
+const JSON_LIMIT = 2 * 1024 * 1024;
+// Allow space for multipart framing around the existing 10 MB file limit.
+const MULTIPART_LIMIT = 11 * 1024 * 1024;
+
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
   const hasBody = req.headers['transfer-encoding'] !== undefined || Number(req.headers['content-length'] ?? 0) > 0;
   if (!hasBody) return Promise.resolve(Buffer.alloc(0));
+  const limit = String(req.headers['content-type'] ?? '').toLowerCase().startsWith('multipart/') ? MULTIPART_LIMIT : JSON_LIMIT;
+  if (Number(req.headers['content-length'] ?? 0) > limit) return Promise.reject(new BodyTooLargeError());
 
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let total = 0;
     let settled = false;
     const finish = () => { if (!settled) { settled = true; resolve(Buffer.concat(chunks)); } };
-    req.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on('data', (chunk) => {
+      if (settled) return;
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += bytes.length;
+      if (total > limit) { settled = true; chunks.length = 0; reject(new BodyTooLargeError()); return; }
+      chunks.push(bytes);
+    });
     req.once('end', finish);
     req.once('error', (error) => { if (!settled) { settled = true; reject(error); } });
     // Safety net: if the platform already ended the stream without replaying it, fail fast
@@ -129,12 +144,21 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const target = req as unknown as Record<string, unknown>;
     target.rawBody = raw;
     let parsed: unknown = {};
-    if (raw.length && contentType.includes('application/json')) parsed = JSON.parse(raw.toString('utf8'));
-    else if (raw.length && contentType.includes('application/x-www-form-urlencoded')) parsed = Object.fromEntries(new URLSearchParams(raw.toString('utf8')));
+    if (raw.length && contentType.includes('application/json')) {
+      try { parsed = JSON.parse(raw.toString('utf8')); } catch { throw new InvalidJsonError(); }
+    } else if (raw.length && contentType.includes('application/x-www-form-urlencoded')) parsed = Object.fromEntries(new URLSearchParams(raw.toString('utf8')));
     Object.defineProperty(req, 'body', { value: parsed, writable: true, configurable: true, enumerable: true });
     target._body = true;
     app(req, res);
   } catch (error) {
+    if (error instanceof BodyTooLargeError || error instanceof InvalidJsonError) {
+      if (!res.headersSent) {
+        res.statusCode = error instanceof BodyTooLargeError ? 413 : 400;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ statusCode: res.statusCode, code: error instanceof BodyTooLargeError ? 'PAYLOAD_TOO_LARGE' : 'INVALID_JSON', message: error instanceof BodyTooLargeError ? 'Request body too large' : 'Invalid request body' }));
+      }
+      return;
+    }
     // Never leak internals; the structured API error shape is produced by the Nest filter
     // for everything that reaches the application.
     console.error('[agencyos] serverless bootstrap failed', error);

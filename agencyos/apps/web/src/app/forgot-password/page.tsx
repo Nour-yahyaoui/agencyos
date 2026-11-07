@@ -14,7 +14,7 @@ import { AuthPanel } from '@/components/layout/auth-panel';
 import { useHydrated } from '@/lib/use-hydrated';
 
 const schema = z.object({ email: z.string().email('Enter a valid email address') });
-type Result = { message: string; developmentResetUrl?: string; emailDelivered: boolean };
+type Result = { message: string; developmentResetUrl?: string; emailDelivered?: boolean };
 
 export default function ForgotPage() {
   const [result, setResult] = React.useState<Result | null>(null);
@@ -38,7 +38,7 @@ export default function ForgotPage() {
           <MailCheck className="h-7 w-7 text-accent" strokeWidth={1.5} aria-hidden />
           <h1 className="text-xl font-semibold tracking-tight">Check your email</h1>
           <p className="text-sm text-ink-muted">{result.message}</p>
-          {!result.emailDelivered && (
+          {result.emailDelivered === false && (
             <p className="rounded-md border border-warning/30 bg-warning/10 px-3.5 py-3 text-sm text-warning">
               Email delivery is not configured on this deployment, so no message was sent.
             </p>

@@ -11,5 +11,5 @@ export class NotificationsController {
   @Get() list(@Scope() s: TenantScope, @Query('unread') unread?: string) { return this.service.list(s.organizationId, s.userId, unread === 'true'); }
   @Patch('read-all') readAll(@Scope() s: TenantScope) { return this.service.markAllRead(s.organizationId, s.userId); }
   @Patch(':id/read') read(@Scope() s: TenantScope, @Param('id') id: string) { return this.service.markRead(s.organizationId, s.userId, id); }
-  @Post('run-reminders') @Roles('OWNER', 'MANAGER') run() { return this.service.deadlineReminders(); }
+  @Post('run-reminders') @Roles('OWNER', 'MANAGER') run(@Scope() s: TenantScope) { return this.service.deadlineReminders(s.organizationId); }
 }

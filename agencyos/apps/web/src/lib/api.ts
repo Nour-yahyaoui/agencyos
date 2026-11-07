@@ -50,7 +50,7 @@ export const authApi = {
   login: (email: string, password: string) => api<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }), orgId: null, skipAuthRefresh: true }),
   register: (data: { name: string; email: string; password: string; organizationName: string }) => api<{ user: User }>('/auth/register', { method: 'POST', body: JSON.stringify(data), orgId: null, skipAuthRefresh: true }),
   logout: () => api('/auth/logout', { method: 'POST', body: '{}', orgId: null, skipAuthRefresh: true }),
-  forgot: (email: string) => api<{ message: string; developmentResetUrl?: string; emailDelivered: boolean }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }), orgId: null, skipAuthRefresh: true }),
+  forgot: (email: string) => api<{ message: string; developmentResetUrl?: string; emailDelivered?: boolean }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }), orgId: null, skipAuthRefresh: true }),
   reset: (token: string, password: string) => api('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }), orgId: null, skipAuthRefresh: true }),
   accept: (data: { token: string; name?: string; password?: string }) => api<{ user: User }>('/auth/accept-invitation', { method: 'POST', body: JSON.stringify(data), orgId: null, skipAuthRefresh: true }),
 };

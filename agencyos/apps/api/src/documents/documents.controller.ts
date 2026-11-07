@@ -15,7 +15,7 @@ export class DocumentsController {
   constructor(private prisma: PrismaService, private storage: IntegrationsService, private audit: AuditService, private projects: ProjectsService) {}
   @Get() async list(@Scope() s: TenantScope, @Query('projectId') projectId?: string, @Query('clientId') clientId?: string) {
     if (projectId) await this.projects.assertAccess(s, projectId);
-    return this.prisma.document.findMany({ where: { organizationId: s.organizationId, ...(projectId ? { projectId } : {}), ...(s.role === 'CLIENT' ? { clientId: s.clientId ?? '__none__' } : clientId ? { clientId } : {}) }, orderBy: { createdAt: 'desc' }, include: { uploadedBy: { select: { id: true, name: true } }, project: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } } });
+    return this.prisma.document.findMany({ where: { organizationId: s.organizationId, ...(projectId ? { projectId } : {}), ...(s.role === 'CLIENT' ? { clientId: s.clientId ?? '__none__' } : clientId ? { clientId } : {}), ...(s.role === 'DEVELOPER' ? { OR: [{ projectId: null }, { project: { members: { some: { userId: s.userId } } } }] } : {}) }, orderBy: { createdAt: 'desc' }, include: { uploadedBy: { select: { id: true, name: true } }, project: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } } });
   }
   @Post('upload') @ApiConsumes('multipart/form-data') @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BYTES } }))
   async upload(@Scope() s: TenantScope, @UploadedFile() file: Express.Multer.File, @Body('projectId') projectId?: string, @Body('clientId') clientId?: string) {
@@ -35,7 +35,7 @@ export class DocumentsController {
   @Get(':id/download') async download(@Scope() s: TenantScope, @Param('id') id: string, @Res() res: Response) {
     const doc = await this.findOne(s, id);
     const buffer = await this.storage.getFile(doc.storageKey);
-    res.setHeader('Content-Type', doc.mimeType); res.setHeader('Content-Disposition', `attachment; filename="${doc.name.replace(/"/g, '')}"`); res.setHeader('Content-Length', buffer.length); res.send(buffer);
+    res.attachment(doc.name); res.setHeader('Content-Type', doc.mimeType); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Content-Length', buffer.length); res.send(buffer);
   }
   @Delete(':id') async remove(@Scope() s: TenantScope, @Param('id') id: string) {
     const doc = await this.findOne(s, id);
