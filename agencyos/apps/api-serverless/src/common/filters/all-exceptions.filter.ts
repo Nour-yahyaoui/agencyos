@@ -23,7 +23,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (exception.code === 'P2002') { status = 409; message = 'A record with these unique values already exists'; code = 'CONFLICT'; }
       else if (exception.code === 'P2025') { status = 404; message = 'Record not found'; code = 'NOT_FOUND'; }
       else if (exception.code === 'P2003') { status = 409; message = 'Operation violates a relational constraint'; code = 'CONSTRAINT'; }
-      else { status = 400; message = 'Database request failed'; code = 'DATABASE_ERROR'; }
+      else { status = 400; message = 'Database request failed'; code = 'DATABASE_ERROR'; this.logger.warn(JSON.stringify({ requestId: req.requestId, path: req.path, prismaCode: exception.code })); }
     }
     if (status >= 500) this.logger.error(JSON.stringify({ requestId: req.requestId, path: req.path, error: exception instanceof Error ? exception.message : String(exception) }));
     res.status(status).json({ statusCode: status, code, message, details, requestId: req.requestId, path: req.path, timestamp: new Date().toISOString() });

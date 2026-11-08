@@ -5,16 +5,16 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Scope, TenantScope } from '../common/decorators/scope.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaginationDto, paginated } from '../common/dto/pagination.dto';
-import { CreateTicketDto, UpdateTicketDto } from './dto';
+import { paginated } from '../common/dto/pagination.dto';
+import { CreateTicketDto, TicketQueryDto, UpdateTicketDto } from './dto';
 import { AuditService } from '../common/audit.service';
 import { NotificationService } from '../notifications/notifications.service';
 @ApiTags('Support') @ApiBearerAuth() @Controller('support/tickets') @UseGuards(OrgGuard, RolesGuard)
 export class SupportController {
   constructor(private prisma: PrismaService, private audit: AuditService, private notifications: NotificationService) {}
-  private where(s: TenantScope, status?: string, q?: string) { return { organizationId: s.organizationId, ...(s.role === 'CLIENT' ? { clientId: s.clientId ?? '__none__' } : {}), ...(status ? { status: status as any } : {}), ...(q ? { OR: [{ subject: { contains: q, mode: 'insensitive' as const } }, { description: { contains: q, mode: 'insensitive' as const } }] } : {}) }; }
-  @Get() async list(@Scope() s: TenantScope, @Query() query: PaginationDto, @Query('status') status?: string) {
-    const where = this.where(s, status, query.q);
+  private where(s: TenantScope, status?: TicketQueryDto['status'], q?: string) { return { organizationId: s.organizationId, ...(s.role === 'CLIENT' ? { clientId: s.clientId ?? '__none__' } : {}), ...(status ? { status } : {}), ...(q ? { OR: [{ subject: { contains: q, mode: 'insensitive' as const } }, { description: { contains: q, mode: 'insensitive' as const } }] } : {}) }; }
+  @Get() async list(@Scope() s: TenantScope, @Query() query: TicketQueryDto) {
+    const where = this.where(s, query.status, query.q);
     const [data, total] = await Promise.all([this.prisma.supportTicket.findMany({ where, skip: query.skip, take: query.limit, orderBy: { createdAt: 'desc' }, include: { client: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } }, _count: { select: { comments: true } } } }), this.prisma.supportTicket.count({ where })]);
     return paginated(data, total, query.page, query.limit);
   }
@@ -39,7 +39,8 @@ export class SupportController {
     if (dto.assigneeId) { const m = await this.prisma.membership.findFirst({ where: { organizationId: s.organizationId, userId: dto.assigneeId, role: { in: ['OWNER', 'MANAGER', 'DEVELOPER'] } } }); if (!m) throw new BadRequestException('Assignee must be an agency member'); }
     const updated = await this.prisma.supportTicket.update({ where: { id }, data: { ...(dto.status ? { status: dto.status } : {}), ...(dto.priority ? { priority: dto.priority } : {}), ...(dto.assigneeId !== undefined ? { assigneeId: dto.assigneeId || null } : {}) } });
     await this.audit.record({ organizationId: s.organizationId, actorId: s.userId, action: 'ticket.updated', entityType: 'SupportTicket', entityId: id, metadata: { status: updated.status, clientId: t.clientId } });
-    const clientMembers = await this.prisma.membership.findMany({ where: { organizationId: s.organizationId, clientId: t.clientId, role: 'CLIENT' }, select: { userId: true } });
+    // Reassignments and priority changes are internal; only a status change is news for the client.
+    const clientMembers = updated.status === t.status ? [] : await this.prisma.membership.findMany({ where: { organizationId: s.organizationId, clientId: t.clientId, role: 'CLIENT' }, select: { userId: true } });
     for (const m of clientMembers) await this.notifications.notify({ organizationId: s.organizationId, userId: m.userId, type: 'SUPPORT', title: `Ticket updated: ${t.subject}`, body: `Status is now ${updated.status.replace('_', ' ').toLowerCase()}.`, link: `/support/${id}`, email: true });
     return updated;
   }

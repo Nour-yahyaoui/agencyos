@@ -11,6 +11,12 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
+  // Behind a reverse proxy (the Next.js /api rewrite, a load balancer) every request otherwise
+  // appears to come from the proxy's IP, so the per-IP throttles (10 logins/min) become a single
+  // global bucket that one client can exhaust for everybody. Only enable for trusted proxies.
+  const trustProxy = config.get<string>('TRUST_PROXY');
+  if (trustProxy) app.getHttpAdapter().getInstance().set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
   app.use(helmet());
   app.use(cookieParser());
   app.use('/api/v1/billing/webhooks/stripe', json({ verify: (req: any, _res, buf) => { req.rawBody = Buffer.from(buf); } }));

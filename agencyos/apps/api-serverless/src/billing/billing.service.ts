@@ -4,7 +4,7 @@ import { InvoiceStatus, Prisma } from '@prisma/client';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantScope } from '../common/decorators/scope.decorator';
-import { calculateInvoice, toCents } from '../common/utils/money';
+import { calculateInvoice, fromMinorUnits, toMinorUnits } from '../common/utils/money';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { AuditService } from '../common/audit.service';
 import { NotificationService } from '../notifications/notifications.service';
@@ -33,14 +33,22 @@ export class BillingService {
     if (!client) throw new BadRequestException('Client not found');
     if (dto.projectId) { const p = await this.prisma.project.findFirst({ where: { id: dto.projectId, organizationId: s.organizationId, clientId: dto.clientId } }); if (!p) throw new BadRequestException('Project not found for this client'); }
     const calc = calculateInvoice(dto.items, dto.taxRate ?? 0);
-    const count = await this.prisma.invoice.count({ where: { organizationId: s.organizationId } });
-    const number = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
-    const invoice = await this.prisma.$transaction(async (tx) => {
-      const inv = await tx.invoice.create({ data: { organizationId: s.organizationId, clientId: dto.clientId, projectId: dto.projectId, number, currency: (dto.currency ?? 'USD').toUpperCase(), subtotal: calc.subtotal, taxRate: dto.taxRate ?? 0, taxAmount: calc.taxAmount, total: calc.total, dueDate: new Date(dto.dueDate), notes: dto.notes, items: { create: calc.lines.map((l, i) => ({ description: dto.items[i].description, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount })) } }, include: { items: true, client: { select: { name: true } } } });
-      await tx.auditEvent.create({ data: { organizationId: s.organizationId, actorId: s.userId, action: 'invoice.created', entityType: 'Invoice', entityId: inv.id, metadata: { clientId: dto.clientId, total: calc.total } } });
-      return inv;
-    });
-    return invoice;
+    // Invoice numbers are unique per organization. Two concurrent creates can read the same
+    // count, so retry with the next number instead of surfacing a 409 to the user.
+    for (let attempt = 0; ; attempt++) {
+      const count = await this.prisma.invoice.count({ where: { organizationId: s.organizationId } });
+      const number = `INV-${new Date().getFullYear()}-${String(count + 1 + attempt).padStart(4, '0')}`;
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const inv = await tx.invoice.create({ data: { organizationId: s.organizationId, clientId: dto.clientId, projectId: dto.projectId, number, currency: (dto.currency ?? 'USD').toUpperCase(), subtotal: calc.subtotal, taxRate: dto.taxRate ?? 0, taxAmount: calc.taxAmount, total: calc.total, dueDate: new Date(dto.dueDate), notes: dto.notes, items: { create: calc.lines.map((l, i) => ({ description: dto.items[i].description, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount })) } }, include: { items: true, client: { select: { name: true } } } });
+          await tx.auditEvent.create({ data: { organizationId: s.organizationId, actorId: s.userId, action: 'invoice.created', entityType: 'Invoice', entityId: inv.id, metadata: { clientId: dto.clientId, total: calc.total } } });
+          return inv;
+        });
+      } catch (error) {
+        if (attempt < 4 && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') continue;
+        throw error;
+      }
+    }
   }
   async update(s: TenantScope, id: string, dto: UpdateInvoiceDto) {
     const existing = await this.get(s, id);
@@ -82,7 +90,7 @@ export class BillingService {
     const stripe = this.integrations.getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      line_items: [{ price_data: { currency: invoice.currency.toLowerCase(), unit_amount: toCents(invoice.total.toString()), product_data: { name: `Invoice ${invoice.number}` } }, quantity: 1 }],
+      line_items: [{ price_data: { currency: invoice.currency.toLowerCase(), unit_amount: toMinorUnits(invoice.total.toString(), invoice.currency), product_data: { name: `Invoice ${invoice.number}` } }, quantity: 1 }],
       success_url: `${this.config.getOrThrow('WEB_URL')}/billing/${id}?payment=success`,
       cancel_url: `${this.config.getOrThrow('WEB_URL')}/billing/${id}?payment=cancelled`,
       client_reference_id: invoice.id,
@@ -113,8 +121,11 @@ export class BillingService {
         if (!invoice) return { received: true, duplicate: false, ignored: 'invoice_not_found' };
         if (session.metadata?.organizationId && session.metadata.organizationId !== invoice.organizationId) throw new BadRequestException('Webhook organization mismatch');
         const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
-        const amount = (session.amount_total ?? 0) / 100;
-        if (Math.abs(amount - Number(invoice.total)) > 0.01) throw new BadRequestException('Webhook amount mismatch');
+        // Compare in the currency's minor units (see toMinorUnits) and require the same currency:
+        // the invoice can be edited after a checkout session was created.
+        if (session.currency && session.currency.toUpperCase() !== invoice.currency.toUpperCase()) throw new BadRequestException('Webhook currency mismatch');
+        if ((session.amount_total ?? -1) !== toMinorUnits(invoice.total.toString(), invoice.currency)) throw new BadRequestException('Webhook amount mismatch');
+        const amount = fromMinorUnits(session.amount_total ?? 0, invoice.currency);
         await tx.payment.upsert({ where: { providerPaymentId: paymentIntentId ?? `session_${session.id}` }, create: { organizationId: invoice.organizationId, invoiceId: invoice.id, amount, currency: (session.currency ?? invoice.currency).toUpperCase(), status: 'SUCCEEDED', provider: 'stripe', providerEventId: event.id, providerPaymentId: paymentIntentId ?? `session_${session.id}`, metadata: { sessionId: session.id } }, update: { status: 'SUCCEEDED' } });
         await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'PAID', paidAt: new Date() } });
         await tx.auditEvent.create({ data: { organizationId: invoice.organizationId, action: 'payment.succeeded', entityType: 'Invoice', entityId: invoice.id, metadata: { amount, eventId: event.id } } });
@@ -125,7 +136,10 @@ export class BillingService {
         const invoiceId = obj.metadata?.invoiceId;
         if (invoiceId) {
           const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
-          if (invoice) await tx.payment.create({ data: { organizationId: invoice.organizationId, invoiceId: invoice.id, amount: Number(invoice.total), currency: invoice.currency, status: 'FAILED', provider: 'stripe', providerEventId: event.id, providerPaymentId: obj.payment_intent ?? obj.id, metadata: { eventType: event.type } } }).catch(() => undefined);
+          // A failed statement aborts the whole PostgreSQL transaction (including the dedupe row),
+          // so never "create().catch()" inside it: upsert on the unique provider id instead.
+          const providerPaymentId = (typeof obj.payment_intent === 'string' ? obj.payment_intent : obj.payment_intent?.id) ?? obj.id;
+          if (invoice) await tx.payment.upsert({ where: { providerPaymentId }, create: { organizationId: invoice.organizationId, invoiceId: invoice.id, amount: Number(invoice.total), currency: invoice.currency, status: 'FAILED', provider: 'stripe', providerEventId: event.id, providerPaymentId, metadata: { eventType: event.type } }, update: {} });
         }
         return { received: true, duplicate: false, failed: true };
       }

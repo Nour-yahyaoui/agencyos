@@ -5,8 +5,8 @@ import { OrgGuard } from '../common/guards/org.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Scope, TenantScope } from '../common/decorators/scope.decorator';
-import { PaginationDto, paginated } from '../common/dto/pagination.dto';
-import { CreateClientDto, OnboardingDto, UpdateClientDto, ContactDto } from './dto';
+import { paginated } from '../common/dto/pagination.dto';
+import { ClientQueryDto, CreateClientDto, OnboardingDto, UpdateClientDto, ContactDto } from './dto';
 import { AuditService } from '../common/audit.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -14,11 +14,11 @@ import { Prisma } from '@prisma/client';
 @ApiTags('Clients') @ApiBearerAuth() @Controller('clients') @UseGuards(OrgGuard, RolesGuard)
 export class ClientsController {
   constructor(private prisma: PrismaService, private audit: AuditService) {}
-  private where(s: TenantScope, q?: string, status?: string): Prisma.ClientWhereInput {
-    return { organizationId: s.organizationId, ...(s.role === 'CLIENT' ? { id: s.clientId ?? '__none__' } : {}), ...(status ? { status: status as any } : {}), ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { company: { contains: q, mode: 'insensitive' } }, { contacts: { some: { email: { contains: q, mode: 'insensitive' } } } }] } : {}) };
+  private where(s: TenantScope, q?: string, status?: ClientQueryDto['status']): Prisma.ClientWhereInput {
+    return { organizationId: s.organizationId, ...(s.role === 'CLIENT' ? { id: s.clientId ?? '__none__' } : {}), ...(status ? { status } : {}), ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { company: { contains: q, mode: 'insensitive' } }, { contacts: { some: { email: { contains: q, mode: 'insensitive' } } } }] } : {}) };
   }
-  @Get() async list(@Scope() s: TenantScope, @Query() query: PaginationDto, @Query('status') status?: string) {
-    const where = this.where(s, query.q, status);
+  @Get() async list(@Scope() s: TenantScope, @Query() query: ClientQueryDto) {
+    const where = this.where(s, query.q, query.status);
     const [data, total] = await Promise.all([
       this.prisma.client.findMany({ where, skip: query.skip, take: query.limit, orderBy: { createdAt: 'desc' }, include: { contacts: true, accountManager: { select: { id: true, name: true, email: true } }, _count: { select: { projects: true, invoices: true, tickets: true } } } }),
       this.prisma.client.count({ where }),
@@ -54,7 +54,7 @@ export class ClientsController {
   }
   @Patch(':id/onboarding') @Roles('OWNER', 'MANAGER') async onboarding(@Scope() s: TenantScope, @Param('id') id: string, @Body() dto: OnboardingDto) {
     await this.get(s, id);
-    const steps = dto.steps.map((x) => ({ key: String(x.key).slice(0, 40), label: String(x.label).slice(0, 120), done: !!x.done }));
+    const steps = dto.steps.map((x) => ({ key: x.key, label: x.label, done: x.done }));
     const allDone = steps.length > 0 && steps.every((x) => x.done);
     const client = await this.prisma.client.update({ where: { id }, data: { onboardingSteps: steps, ...(allDone ? { status: 'ACTIVE' } : {}) } });
     await this.audit.record({ organizationId: s.organizationId, actorId: s.userId, action: 'client.onboarding_updated', entityType: 'Client', entityId: id });

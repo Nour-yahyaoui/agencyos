@@ -12,7 +12,6 @@ export class TasksService {
   constructor(private prisma: PrismaService, private projects: ProjectsService, private audit: AuditService, private notifications: NotificationService) {}
   async list(s: TenantScope, q: { projectId?: string; status?: string; assigneeId?: string; overdue?: string; page: number; limit: number; skip: number; q?: string }) {
     const where: Prisma.TaskWhereInput = { organizationId: s.organizationId, project: this.projects.projectWhere(s), ...(q.projectId ? { projectId: q.projectId } : {}), ...(q.status ? { status: q.status as TaskStatus } : {}), ...(q.assigneeId ? { assigneeId: q.assigneeId } : {}), ...(q.overdue === 'true' ? { status: { not: 'DONE' }, dueDate: { lt: new Date() } } : {}), ...(q.q ? { title: { contains: q.q, mode: 'insensitive' } } : {}) };
-    if (s.role === 'DEVELOPER' && !q.projectId) where.project = this.projects.projectWhere(s);
     const [data, total] = await Promise.all([
       this.prisma.task.findMany({ where, skip: q.skip, take: q.limit, orderBy: [{ dueDate: 'asc' }, { position: 'asc' }], include: { project: { select: { id: true, name: true, client: { select: { name: true } } } }, assignee: { select: { id: true, name: true, email: true } }, milestone: { select: { id: true, name: true } }, dependencies: { select: { prerequisiteId: true } } } }),
       this.prisma.task.count({ where }),
@@ -36,8 +35,19 @@ export class TasksService {
   async update(s: TenantScope, id: string, dto: UpdateTaskDto) {
     const existing = await this.get(s, id);
     await this.projects.assertAccess(s, dto.projectId);
-    await this.validateRefs(s, dto);
-    const task = await this.prisma.task.update({ where: { id }, data: { projectId: dto.projectId, title: dto.title, description: dto.description, status: dto.status ?? existing.status, priority: dto.priority ?? existing.priority, assigneeId: dto.assigneeId === undefined ? existing.assigneeId : dto.assigneeId || null, milestoneId: dto.milestoneId === undefined ? existing.milestoneId : dto.milestoneId || null, dueDate: dto.dueDate === undefined ? existing.dueDate : dto.dueDate ? new Date(dto.dueDate) : null, estimatedHours: dto.estimatedHours, completedAt: (dto.status ?? existing.status) === 'DONE' ? existing.completedAt ?? new Date() : null }, include: { assignee: { select: { id: true, name: true } }, project: { select: { name: true } } } });
+    const movedProject = dto.projectId !== existing.projectId;
+    // When a task changes project its milestone, assignee and dependencies belong to the old one.
+    // Re-validate the effective references against the new project instead of keeping them silently.
+    const assigneeId = dto.assigneeId === undefined ? existing.assigneeId : dto.assigneeId || null;
+    const milestoneId = dto.milestoneId === undefined ? (movedProject ? null : existing.milestoneId) : dto.milestoneId || null;
+    await this.validateRefs(s, { ...dto, assigneeId, milestoneId });
+    const status = dto.status ?? existing.status;
+    // PATCH used to bypass the prerequisite rule that the Kanban move endpoint enforces.
+    if (status === 'DONE' && existing.status !== 'DONE' && !movedProject) await this.assertNoOpenPrerequisites(id);
+    const task = await this.prisma.$transaction(async (tx) => {
+      if (movedProject) await tx.taskDependency.deleteMany({ where: { OR: [{ taskId: id }, { prerequisiteId: id }] } });
+      return tx.task.update({ where: { id }, data: { projectId: dto.projectId, title: dto.title, description: dto.description, status, priority: dto.priority ?? existing.priority, assigneeId, milestoneId, dueDate: dto.dueDate === undefined ? existing.dueDate : dto.dueDate ? new Date(dto.dueDate) : null, estimatedHours: dto.estimatedHours, completedAt: status === 'DONE' ? existing.completedAt ?? new Date() : null }, include: { assignee: { select: { id: true, name: true } }, project: { select: { name: true } } } });
+    });
     await this.audit.record({ organizationId: s.organizationId, actorId: s.userId, action: 'task.updated', entityType: 'Task', entityId: id, metadata: { projectId: task.projectId } });
     if (task.assigneeId && task.assigneeId !== existing.assigneeId && task.assigneeId !== s.userId) await this.notifications.notify({ organizationId: s.organizationId, userId: task.assigneeId, type: 'PROJECT_ACTIVITY', title: `Task assigned: ${task.title}`, body: `You were assigned "${task.title}".`, link: `/projects/${task.projectId}`, email: true });
     return task;
@@ -45,10 +55,7 @@ export class TasksService {
   async move(s: TenantScope, id: string, status: TaskStatus, position: number) {
     const task = await this.get(s, id);
     if (s.role === 'CLIENT') throw new BadRequestException('Clients cannot move tasks');
-    if (status === 'DONE') {
-      const blockers = await this.prisma.taskDependency.count({ where: { taskId: id, prerequisite: { status: { not: 'DONE' } } } });
-      if (blockers) throw new BadRequestException('Cannot complete a task with unfinished prerequisites');
-    }
+    if (status === 'DONE') await this.assertNoOpenPrerequisites(id);
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.task.updateMany({ where: { projectId: task.projectId, status, position: { gte: position }, id: { not: id } }, data: { position: { increment: 1 } } });
       return tx.task.update({ where: { id }, data: { status, position, completedAt: status === 'DONE' ? new Date() : null } });
@@ -64,16 +71,24 @@ export class TasksService {
     const task = await this.get(s, id); const pre = await this.get(s, prerequisiteId);
     if (id === prerequisiteId) throw new BadRequestException('A task cannot depend on itself');
     if (task.projectId !== pre.projectId) throw new BadRequestException('Dependencies must be within the same project');
-    if (await this.wouldCycle(id, prerequisiteId)) throw new BadRequestException('Dependency would create a cycle');
+    if (await this.wouldCycle(task.projectId, id, prerequisiteId)) throw new BadRequestException('Dependency would create a cycle');
     const dep = await this.prisma.taskDependency.upsert({ where: { taskId_prerequisiteId: { taskId: id, prerequisiteId } }, create: { taskId: id, prerequisiteId }, update: {} });
     await this.audit.record({ organizationId: s.organizationId, actorId: s.userId, action: 'task.dependency_added', entityType: 'Task', entityId: id, metadata: { projectId: task.projectId, prerequisiteId } });
     return dep;
   }
   async removeDependency(s: TenantScope, id: string, prerequisiteId: string) { await this.get(s, id); await this.prisma.taskDependency.deleteMany({ where: { taskId: id, prerequisiteId } }); return { message: 'Dependency removed' }; }
-  private async wouldCycle(taskId: string, prerequisiteId: string) {
-    // Walk prerequisites from the proposed prerequisite; if we reach taskId, adding creates a cycle.
+  private async assertNoOpenPrerequisites(taskId: string) {
+    const blockers = await this.prisma.taskDependency.count({ where: { taskId, prerequisite: { status: { not: 'DONE' } } } });
+    if (blockers) throw new BadRequestException('Cannot complete a task with unfinished prerequisites');
+  }
+  private async wouldCycle(projectId: string, taskId: string, prerequisiteId: string) {
+    // Dependencies are always within one project, so load that graph once (one query) instead of
+    // issuing a query per visited node. If we can reach taskId from the prerequisite, it's a cycle.
+    const edges = await this.prisma.taskDependency.findMany({ where: { task: { projectId } }, select: { taskId: true, prerequisiteId: true } });
+    const graph = new Map<string, string[]>();
+    for (const e of edges) graph.set(e.taskId, [...(graph.get(e.taskId) ?? []), e.prerequisiteId]);
     const seen = new Set<string>(); const stack = [prerequisiteId];
-    while (stack.length) { const current = stack.pop()!; if (current === taskId) return true; if (seen.has(current)) continue; seen.add(current); const deps = await this.prisma.taskDependency.findMany({ where: { taskId: current }, select: { prerequisiteId: true } }); stack.push(...deps.map((d) => d.prerequisiteId)); }
+    while (stack.length) { const current = stack.pop()!; if (current === taskId) return true; if (seen.has(current)) continue; seen.add(current); stack.push(...(graph.get(current) ?? [])); }
     return false;
   }
   private async validateRefs(s: TenantScope, dto: CreateTaskDto) {

@@ -14,6 +14,9 @@ export const envSchema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(604800),
   COOKIE_SECURE: bool(false),
+  // Express `trust proxy` for the long-running server: a hop count (e.g. 1 behind the Next.js
+  // proxy), 'loopback', or a CIDR list. Unset = do not trust X-Forwarded-For.
+  TRUST_PROXY: optional,
   STRIPE_SECRET_KEY: optional,
   STRIPE_WEBHOOK_SECRET: optional,
   STRIPE_PRICE_ID: optional,
