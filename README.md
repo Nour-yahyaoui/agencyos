@@ -1,4 +1,4 @@
-# AgencyOS platform
+# AgencyOS
 
 **One workspace for the business and delivery of digital agency work.** AgencyOS brings clients, projects, tasks, support, documents, billing and reporting together in a multi-tenant platform, with a dedicated client portal.
 
