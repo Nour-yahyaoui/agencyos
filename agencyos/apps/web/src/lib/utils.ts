@@ -9,3 +9,12 @@ export function formatMoney(value: number | string | null | undefined, currency 
 export function initials(name: string) { return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase(); }
 export function titleCase(value: string) { return value.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()); }
 export function daysUntil(value?: string | Date | null) { if (!value) return null; return Math.ceil((new Date(value).getTime() - Date.now()) / 86400000); }
+
+/** Returns an http(s) URL safe to use as a link target, or null (blocks `javascript:` and friends). */
+export function safeExternalUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch { return null; }
+}

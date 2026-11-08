@@ -1,4 +1,5 @@
 import { IsIn, IsOptional, IsString, Length } from 'class-validator';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateTicketDto {
   @ApiProperty() @IsString() @Length(3, 160) subject: string;
@@ -10,4 +11,9 @@ export class UpdateTicketDto {
   @ApiPropertyOptional({ enum: ['OPEN', 'IN_PROGRESS', 'WAITING_CLIENT', 'RESOLVED', 'CLOSED'] }) @IsIn(['OPEN', 'IN_PROGRESS', 'WAITING_CLIENT', 'RESOLVED', 'CLOSED']) @IsOptional() status?: any;
   @ApiPropertyOptional() @IsString() @IsOptional() assigneeId?: string | null;
   @ApiPropertyOptional({ enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] }) @IsIn(['LOW', 'MEDIUM', 'HIGH', 'URGENT']) @IsOptional() priority?: any;
+}
+
+/** Query filters for `GET /support/tickets`; see ClientQueryDto for why `status` lives on the DTO. */
+export class TicketQueryDto extends PaginationDto {
+  @ApiPropertyOptional({ enum: ['OPEN', 'IN_PROGRESS', 'WAITING_CLIENT', 'RESOLVED', 'CLOSED'] }) @IsIn(['OPEN', 'IN_PROGRESS', 'WAITING_CLIENT', 'RESOLVED', 'CLOSED']) @IsOptional() status?: 'OPEN' | 'IN_PROGRESS' | 'WAITING_CLIENT' | 'RESOLVED' | 'CLOSED';
 }

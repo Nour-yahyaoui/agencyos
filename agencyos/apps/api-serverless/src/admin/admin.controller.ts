@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsOptional } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +16,11 @@ export class AdminController {
   }
   @Get('organizations') async organizations(@Query() q: PaginationDto) { const where = q.q ? { name: { contains: q.q, mode: 'insensitive' as const } } : {}; const [data, total] = await Promise.all([this.prisma.organization.findMany({ where, skip: q.skip, take: q.limit, orderBy: { createdAt: 'desc' }, include: { subscription: true, _count: { select: { memberships: true, clients: true, projects: true } } } }), this.prisma.organization.count({ where })]); return paginated(data, total, q.page, q.limit); }
   @Get('users') async users(@Query() q: PaginationDto) { const where = q.q ? { OR: [{ email: { contains: q.q, mode: 'insensitive' as const } }, { name: { contains: q.q, mode: 'insensitive' as const } }] } : {}; const [data, total] = await Promise.all([this.prisma.user.findMany({ where, skip: q.skip, take: q.limit, orderBy: { createdAt: 'desc' }, select: { id: true, email: true, name: true, platformRole: true, isActive: true, createdAt: true, _count: { select: { memberships: true } } } }), this.prisma.user.count({ where })]); return paginated(data, total, q.page, q.limit); }
-  @Patch('users/:id') async updateUser(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() dto: AdminUserDto) { const user = await this.prisma.user.update({ where: { id }, data: dto }); await this.audit.record({ actorId: actor.id, action: 'admin.user_updated', entityType: 'User', entityId: id, metadata: dto as any }); return { id: user.id, email: user.email, isActive: user.isActive, platformRole: user.platformRole }; }
+  @Patch('users/:id') async updateUser(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() dto: AdminUserDto) {
+    // Prevent an administrator from locking themselves (and possibly the platform) out.
+    if (id === actor.id && (dto.isActive === false || dto.platformRole === 'USER')) throw new BadRequestException('You cannot deactivate or demote your own administrator account');
+    const user = await this.prisma.user.update({ where: { id }, data: dto });
+    // Deactivation must end existing refresh sessions too, not only block the next access check.
+    if (dto.isActive === false) await this.prisma.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await this.audit.record({ actorId: actor.id, action: 'admin.user_updated', entityType: 'User', entityId: id, metadata: dto as any }); return { id: user.id, email: user.email, isActive: user.isActive, platformRole: user.platformRole }; }
   @Get('audit') auditEvents(@Query() q: PaginationDto) { return this.prisma.auditEvent.findMany({ orderBy: { createdAt: 'desc' }, skip: q.skip, take: q.limit, include: { actor: { select: { name: true, email: true } }, organization: { select: { name: true } } } }); }
 }

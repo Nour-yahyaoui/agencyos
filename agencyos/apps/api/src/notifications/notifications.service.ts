@@ -4,17 +4,20 @@ import { NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 
+/** Overdue tasks older than this are not re-scanned on every run. */
+const REMINDER_LOOKBACK_DAYS = 14;
+const REMINDER_BATCH_LIMIT = 2000;
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger('Notifications');
   constructor(private prisma: PrismaService, private integrations: IntegrationsService) {}
 
   async notify(input: { organizationId: string; userId: string; type?: NotificationType; title: string; body: string; link?: string; dedupeKey?: string; email?: boolean }) {
-    const notification = await this.prisma.notification.upsert({
-      where: { userId_dedupeKey: { userId: input.userId, dedupeKey: input.dedupeKey ?? `evt-${Date.now()}-${Math.random()}` } },
-      create: { organizationId: input.organizationId, userId: input.userId, type: input.type ?? 'GENERAL', title: input.title, body: input.body, link: input.link, dedupeKey: input.dedupeKey ?? null },
-      update: {},
-    });
+    const data = { organizationId: input.organizationId, userId: input.userId, type: input.type ?? 'GENERAL', title: input.title, body: input.body, link: input.link, dedupeKey: input.dedupeKey ?? null };
+    const notification = input.dedupeKey
+      ? await this.prisma.notification.upsert({ where: { userId_dedupeKey: { userId: input.userId, dedupeKey: input.dedupeKey } }, create: data, update: {} })
+      : await this.prisma.notification.create({ data });
     if (input.email) {
       const user = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { email: true } });
       if (user) {
@@ -53,16 +56,28 @@ export class NotificationService {
     return this.deadlineReminders();
   }
 
+  /**
+   * Reminds assignees about tasks due within 48 hours (and recently overdue ones). The candidate
+   * window has a lower bound so the job does not rescan every task that has ever been overdue on
+   * every run, and already-sent reminders are excluded with one query instead of one per task.
+   */
   async deadlineReminders(organizationId?: string) {
-    const soon = new Date(Date.now() + 48 * 3600000);
-    const tasks = await this.prisma.task.findMany({ where: { ...(organizationId ? { organizationId } : {}), status: { not: 'DONE' }, dueDate: { not: null, lte: soon }, assigneeId: { not: null } }, include: { project: { select: { name: true } } } });
+    const now = Date.now();
+    const soon = new Date(now + 48 * 3600000);
+    const since = new Date(now - REMINDER_LOOKBACK_DAYS * 86400000);
+    const tasks = await this.prisma.task.findMany({ where: { ...(organizationId ? { organizationId } : {}), status: { not: 'DONE' }, dueDate: { gte: since, lte: soon }, assigneeId: { not: null } }, select: { id: true, title: true, organizationId: true, projectId: true, assigneeId: true, dueDate: true, project: { select: { name: true } } }, orderBy: { dueDate: 'asc' }, take: REMINDER_BATCH_LIMIT });
+    const keyOf = (t: (typeof tasks)[number]) => `deadline:${t.id}:${t.dueDate!.toISOString().slice(0, 10)}`;
+    const existing = tasks.length ? await this.prisma.notification.findMany({ where: { dedupeKey: { in: tasks.map(keyOf) } }, select: { userId: true, dedupeKey: true } }) : [];
+    const sent = new Set(existing.map((n) => `${n.userId}|${n.dedupeKey}`));
+    const pending = tasks.filter((t) => !sent.has(`${t.assigneeId}|${keyOf(t)}`));
     let created = 0;
-    for (const t of tasks) {
-      const day = t.dueDate!.toISOString().slice(0, 10);
-      const before = await this.prisma.notification.count({ where: { userId: t.assigneeId!, dedupeKey: `deadline:${t.id}:${day}` } });
-      if (before) continue;
-      await this.notify({ organizationId: t.organizationId, userId: t.assigneeId!, type: 'DEADLINE', title: `Deadline approaching: ${t.title}`, body: `"${t.title}" in ${t.project.name} is due ${t.dueDate!.toISOString().slice(0, 10)}.`, link: `/projects/${t.projectId}`, dedupeKey: `deadline:${t.id}:${day}`, email: true });
-      if (!before) created++;
+    // Small concurrent batches: each reminder may also send an e-mail.
+    for (let i = 0; i < pending.length; i += 10) {
+      await Promise.all(pending.slice(i, i + 10).map(async (t) => {
+        const day = t.dueDate!.toISOString().slice(0, 10);
+        await this.notify({ organizationId: t.organizationId, userId: t.assigneeId!, type: 'DEADLINE', title: `Deadline approaching: ${t.title}`, body: `"${t.title}" in ${t.project.name} is due ${day}.`, link: `/projects/${t.projectId}`, dedupeKey: keyOf(t), email: true });
+        created++;
+      }));
     }
     this.logger.log(JSON.stringify({ event: 'deadline_reminders', candidates: tasks.length, created }));
     return { candidates: tasks.length, created };

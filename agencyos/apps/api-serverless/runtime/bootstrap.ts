@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '../src/app.module';
 import { NotificationService } from '../src/notifications/notifications.service';
+import { safeEqual } from '../src/common/utils/security';
 
 /**
  * Serverless bootstrap. Identical module graph, guards, pipes, cookies, CORS and error
@@ -65,7 +66,8 @@ export async function createApp(): Promise<Express> {
   server.get('/api/cron/reminders', async (req: Request, res: Response) => {
     const secret = process.env.CRON_SECRET;
     if (!secret) { res.status(503).json({ code: 'CRON_UNAVAILABLE', message: 'CRON_SECRET is not configured.' }); return; }
-    if (req.headers.authorization !== `Bearer ${secret}`) { res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid cron credentials.' }); return; }
+    const auth = req.headers.authorization;
+    if (typeof auth !== 'string' || !safeEqual(auth, `Bearer ${secret}`)) { res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid cron credentials.' }); return; }
     try {
       res.json(await app.get(NotificationService).deadlineReminders());
     } catch (error) {
