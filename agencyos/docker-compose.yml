@@ -31,6 +31,9 @@ services:
       JWT_ACCESS_SECRET: compose-demo-access-secret-change-me-32chars
       JWT_REFRESH_SECRET: compose-demo-refresh-secret-change-me-32chars
       COOKIE_SECURE: 'false'
+      # Requests arrive through the web container's /api rewrite; trust that one hop so per-IP
+      # rate limits apply to real clients instead of one shared bucket for the proxy.
+      TRUST_PROXY: '1'
     ports: ['4000:4000']
     depends_on:
       db:

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsOptional, IsString, Length, MaxLength } from 'class-validator';
 import { OrgGuard } from '../common/guards/org.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -9,6 +9,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
 import { AuditService } from '../common/audit.service';
 class MilestoneDto { @IsString() projectId: string; @IsString() @Length(2, 120) name: string; @IsString() @MaxLength(2000) @IsOptional() description?: string; @IsDateString() dueDate: string; }
+/**
+ * A real class is required here: the previous `Partial<MilestoneDto> & { completed?: boolean }`
+ * type is erased at runtime, so ValidationPipe received `Object` and skipped validation entirely
+ * (any type/length reached Prisma, and an invalid dueDate surfaced as a 500).
+ */
+class UpdateMilestoneDto { @IsString() @Length(2, 120) @IsOptional() name?: string; @IsString() @MaxLength(2000) @IsOptional() description?: string; @IsDateString() @IsOptional() dueDate?: string; @IsBoolean() @IsOptional() completed?: boolean; }
 @ApiTags('Milestones') @ApiBearerAuth() @Controller('milestones') @UseGuards(OrgGuard, RolesGuard)
 export class MilestonesController {
   constructor(private prisma: PrismaService, private projects: ProjectsService, private audit: AuditService) {}
@@ -22,7 +28,7 @@ export class MilestonesController {
     await this.audit.record({ organizationId: s.organizationId, actorId: s.userId, action: 'milestone.created', entityType: 'Milestone', entityId: m.id, metadata: { projectId: dto.projectId } });
     return m;
   }
-  @Patch(':id') @Roles('OWNER', 'MANAGER') async update(@Scope() s: TenantScope, @Param('id') id: string, @Body() dto: Partial<MilestoneDto> & { completed?: boolean }) {
+  @Patch(':id') @Roles('OWNER', 'MANAGER') async update(@Scope() s: TenantScope, @Param('id') id: string, @Body() dto: UpdateMilestoneDto) {
     const m = await this.prisma.milestone.findFirst({ where: { id, organizationId: s.organizationId, project: this.projects.projectWhere(s) } });
     if (!m) throw new NotFoundException('Milestone not found');
     const updated = await this.prisma.milestone.update({ where: { id }, data: { ...(dto.name ? { name: dto.name } : {}), ...(dto.description !== undefined ? { description: dto.description } : {}), ...(dto.dueDate ? { dueDate: new Date(dto.dueDate) } : {}), ...(dto.completed !== undefined ? { completedAt: dto.completed ? new Date() : null } : {}) } });
@@ -30,9 +36,10 @@ export class MilestonesController {
     return updated;
   }
   @Delete(':id') @Roles('OWNER', 'MANAGER') async remove(@Scope() s: TenantScope, @Param('id') id: string) {
-    const m = await this.prisma.milestone.findFirst({ where: { id, organizationId: s.organizationId } });
+    const m = await this.prisma.milestone.findFirst({ where: { id, organizationId: s.organizationId, project: this.projects.projectWhere(s) } });
     if (!m) throw new NotFoundException('Milestone not found');
     await this.prisma.milestone.delete({ where: { id } });
+    await this.audit.record({ organizationId: s.organizationId, actorId: s.userId, action: 'milestone.deleted', entityType: 'Milestone', entityId: id, metadata: { projectId: m.projectId } });
     return { message: 'Milestone deleted' };
   }
 }

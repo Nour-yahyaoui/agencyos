@@ -20,6 +20,9 @@ export class DocumentsController {
   @Post('upload') @ApiConsumes('multipart/form-data') @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BYTES } }))
   async upload(@Scope() s: TenantScope, @UploadedFile() file: Express.Multer.File, @Body('projectId') projectId?: string, @Body('clientId') clientId?: string) {
     if (!file) throw new BadRequestException('file is required');
+    // Multipart fields are untyped (a repeated field arrives as an array); reject anything but a string.
+    if ((projectId !== undefined && typeof projectId !== 'string') || (clientId !== undefined && typeof clientId !== 'string')) throw new BadRequestException('projectId and clientId must be strings');
+    projectId = projectId || undefined; clientId = clientId || undefined;
     if (file.size > MAX_BYTES) throw new BadRequestException('File exceeds 10 MB limit');
     if (!ALLOWED.has(file.mimetype)) throw new BadRequestException('File type not allowed');
     let resolvedClientId = clientId;

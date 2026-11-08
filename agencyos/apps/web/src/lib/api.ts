@@ -37,7 +37,9 @@ export async function api<T>(path: string, options: RequestInit & { orgId?: stri
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  const body = text ? JSON.parse(text) : undefined;
+  // A proxy/gateway error page (502/504 HTML) is not JSON; surface it as an ApiError, not a SyntaxError.
+  let body: { message?: string | string[]; code?: string; details?: unknown } | undefined;
+  try { body = text ? JSON.parse(text) : undefined; } catch { if (res.ok) throw new ApiError(res.status, 'Unexpected response from the server'); body = undefined; }
   if (!res.ok) {
     const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message || `Request failed (${res.status})`;
     throw new ApiError(res.status, message, body?.code, body?.details);

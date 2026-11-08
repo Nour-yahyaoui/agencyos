@@ -27,7 +27,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar } from '@/components/ui/avatar';
 import { formatDate } from '@/lib/utils';
-const schema = z.object({ name: z.string().min(2), company: z.string().optional(), website: z.string().url().optional().or(z.literal('')), notes: z.string().optional(), accountManagerId: z.string().optional(), contactName: z.string().optional(), contactEmail: z.string().email().optional().or(z.literal('')) });
+const schema = z.object({ name: z.string().min(2), company: z.string().optional(), website: z.string().url().regex(/^https?:\/\//i, 'Use an http(s) URL').optional().or(z.literal('')), notes: z.string().optional(), accountManagerId: z.string().optional(), contactName: z.string().optional(), contactEmail: z.string().email().optional().or(z.literal('')) });
 type Form = z.infer<typeof schema>;
 export default function ClientsPage() {
   const { org, isManagement, isClient } = useAuth();
