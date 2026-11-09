@@ -39,7 +39,7 @@
     "dotenv": "^18.0.9",
     "helmet": "^8.1.0",
     "multer": "^2.0.2",
-    "openai": "^6.7.0",
+    "openai": "^7.53.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.3.0",
     "rxjs": "^7.8.2",
