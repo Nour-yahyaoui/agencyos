@@ -89,3 +89,8 @@ The [serverless API notes](agencyos/apps/api-serverless/README.md) provide furth
 ## Security and operations
 
 Use separate development and production credentials and databases, strong unique JWT secrets, HTTPS and secure cookies in production. Back up the database before migrations and review external integrations and webhook configuration before enabling them. Do not expose secrets in issues, logs or pull requests.
+
+## Project guidelines and license
+
+- [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Security policy](SECURITY.md)
+- AgencyOS is licensed under the [Apache License 2.0](LICENSE). Third-party dependencies and assets may have their own terms.
