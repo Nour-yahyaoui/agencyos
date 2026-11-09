@@ -7,7 +7,6 @@ import '@fontsource/ibm-plex-mono/latin-500.css';
 import { Providers } from '@/lib/providers';
 import { ThemeProvider } from '@/components/theme/theme';
 import { Toaster } from '@/components/ui/toaster';
-import { SignatureNotice } from '@/components/layout/signature-notice';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -42,7 +41,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <Providers>{children}</Providers>
           <Toaster />
-          <SignatureNotice />
         </ThemeProvider>
       </body>
     </html>
