@@ -156,7 +156,6 @@ docker        Container entrypoint (migrate deploy, optional seed, then node)
 - [TESTING](docs/TESTING.md) — what each layer proves, real results, gaps
 - [DEPLOYMENT](docs/DEPLOYMENT.md) — env matrix, Vercel + managed API + managed Postgres, Docker checklist
 - [SECURITY](SECURITY.md) — threat model, controls, reporting
-- [ROADMAP](docs/ROADMAP.md) — milestones and what is deliberately out of scope
 - [REQUIREMENTS_MAPPING](docs/REQUIREMENTS_MAPPING.md) — Nexorlio requirement-by-requirement status
 - [DEMO_SCRIPT](docs/DEMO_SCRIPT.md) — 10-minute interview walkthrough
 - [SAMPLE_ISSUES](docs/SAMPLE_ISSUES.md) — backlog written the way the team would work

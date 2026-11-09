@@ -1,0 +1,44 @@
+name: Basic checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: basic-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, unit tests and builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: agencyos
+    env:
+      DATABASE_URL: postgresql://agencyos:agencyos@127.0.0.1:5432/agencyos?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-not-used-outside-ci-32chars
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-used-outside-ci-32chars
+      WEB_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: /api/v1
+      API_INTERNAL_URL: http://127.0.0.1:4000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: npm
+          cache-dependency-path: agencyos/package-lock.json
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run typecheck -w @agencyos/api-serverless
+      - run: npm run check:sync -w @agencyos/api-serverless
+      - run: npm run build
